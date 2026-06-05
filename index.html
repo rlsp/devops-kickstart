@@ -283,8 +283,9 @@
 
   /* ---------- HUD ---------- */
   #hud{position:fixed;left:22px;top:22px;z-index:120;}
+  .hud-row{display:flex;align-items:center;gap:16px;}
   .brand{font-family:'Fraunces',serif;font-size:25px;font-weight:700;letter-spacing:-.5px;
-    white-space:nowrap;margin-bottom:10px;}
+    white-space:nowrap;}
   .brand-sub{color:var(--ink-soft);font-size:12.5px;margin-top:4px;font-family:'Spline Sans Mono',monospace;}
 
   /* stack switcher */
@@ -334,6 +335,18 @@
     backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:14px 16px;
     font-size:12px;transition:opacity .35s;}
   .legend.hide{opacity:0;pointer-events:none;}
+  .lg-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;}
+  .lg-title{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--ink-dim);}
+  .lg-toggle{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink-soft);
+    font-size:11px;transition:.16s;}
+  .lg-toggle:hover{background:rgba(255,255,255,.1);color:var(--ink);}
+  .lg-toggle i{transition:transform .25s;}
+  .legend.collapsed .lg-toggle i{transform:rotate(180deg);}
+  .lg-body{overflow:hidden;max-height:600px;opacity:1;margin-top:10px;
+    transition:max-height .32s ease, opacity .25s ease, margin-top .32s ease;}
+  .legend.collapsed .lg-body{max-height:0;opacity:0;margin-top:0;}
   .legend .lg-row{display:flex;align-items:center;gap:9px;margin:6px 0;color:var(--ink-soft);}
   .lg-sw{width:22px;height:16px;border-radius:5px;flex:0 0 auto;
     border:1.5px solid var(--lg-c,#3f9e57);
@@ -358,30 +371,40 @@
 
 <!-- HUD -->
 <div id="hud">
-  <div class="brand">DevOps Tooling &amp; Process Interaction</div>
-  <span id="stackSwitch" class="stack-switch">
-    <button id="stackBtn" class="stack-btn" type="button">
-      <span class="stack-btn-label">Stack:</span>
-      <i id="stackBtnIco" class="fa-brands fa-java"></i>
-      <span id="stackBtnName">Java</span>
-      <i class="fa-solid fa-chevron-down stack-caret"></i>
-    </button>
-    <div id="stackMenu" class="stack-menu"></div>
-  </span>
+  <div class="hud-row">
+    <div class="brand">DevOps Tooling &amp; Process Interaction</div>
+    <span id="stackSwitch" class="stack-switch">
+      <button id="stackBtn" class="stack-btn" type="button">
+        <span class="stack-btn-label">Stack:</span>
+        <i id="stackBtnIco" class="fa-brands fa-java"></i>
+        <span id="stackBtnName">Java</span>
+        <i class="fa-solid fa-chevron-down stack-caret"></i>
+      </button>
+      <div id="stackMenu" class="stack-menu"></div>
+    </span>
+  </div>
 </div>
 
 <div class="legend" id="legend">
-  <div class="lg-row"><span class="lg-sw" style="--lg-c:#3f9e57"></span>Tooling stage</div>
-  <div class="lg-row"><span class="lg-sw" style="--lg-c:#4f7bd1"></span>Orchestrator</div>
-  <div class="lg-row"><span class="lg-sw" style="--lg-c:#7c5cd6"></span>Artifact / data</div>
-  <div class="lg-row"><span class="lg-sw" style="--lg-c:#c79a40"></span>Skill / concept</div>
-  <div class="lg-row"><span class="lg-line" style="--lg-c:#4f7bd1"></span>orchestrate flow</div>
-  <div class="lg-sep"></div>
-  <div class="lg-head">Workstreams</div>
-  <div class="lg-row"><span class="lg-ico" style="color:#8fb8f0"><i class="fa-solid fa-code"></i></span>Developers</div>
-  <div class="lg-row"><span class="lg-ico" style="color:#f2b8a8"><i class="fa-solid fa-bug"></i></span>Testers / QA</div>
-  <div class="lg-row"><span class="lg-ico" style="color:#9ed8a8"><i class="fa-solid fa-server"></i></span>Platform / Infra Engineers</div>
-  <div class="lg-row"><span class="lg-ico" style="color:#c4a6ff"><i class="fa-solid fa-infinity"></i></span>DevOps</div>
+  <div class="lg-bar">
+    <span class="lg-title">Legend</span>
+    <button class="lg-toggle" id="legendToggle" type="button" title="Collapse legend" aria-label="Collapse legend">
+      <i class="fa-solid fa-chevron-up"></i>
+    </button>
+  </div>
+  <div class="lg-body" id="legendBody">
+    <div class="lg-row"><span class="lg-sw" style="--lg-c:#3f9e57"></span>Tooling stage</div>
+    <div class="lg-row"><span class="lg-sw" style="--lg-c:#4f7bd1"></span>Orchestrator</div>
+    <div class="lg-row"><span class="lg-sw" style="--lg-c:#7c5cd6"></span>Artifact / data</div>
+    <div class="lg-row"><span class="lg-sw" style="--lg-c:#c79a40"></span>Skill / concept</div>
+    <div class="lg-row"><span class="lg-line" style="--lg-c:#4f7bd1"></span>orchestrate flow</div>
+    <div class="lg-sep"></div>
+    <div class="lg-head">Workstreams</div>
+    <div class="lg-row"><span class="lg-ico" style="color:#8fb8f0"><i class="fa-solid fa-code"></i></span>Developers</div>
+    <div class="lg-row"><span class="lg-ico" style="color:#f2b8a8"><i class="fa-solid fa-bug"></i></span>Testers / QA</div>
+    <div class="lg-row"><span class="lg-ico" style="color:#9ed8a8"><i class="fa-solid fa-server"></i></span>Platform / Infra Engineers</div>
+    <div class="lg-row"><span class="lg-ico" style="color:#c4a6ff"><i class="fa-solid fa-infinity"></i></span>DevOps</div>
+  </div>
 </div>
 
 <div id="controls">
@@ -762,7 +785,9 @@ function applyStack(key){
     NODES[id] = Object.assign({}, base, (st.nodes[id]||{}));
   });
   Object.entries(BASE_INFO).forEach(([id,base])=>{
-    INFO[id] = (st.info && st.info[id]) ? Object.assign({}, base, st.info[id]) : base;
+    // Stack overrides are COMPLETE entries — replace, don't merge, so fields
+    // present only in the base (e.g. Java's Maven/Gradle note) never leak across.
+    INFO[id] = (st.info && st.info[id]) ? st.info[id] : base;
   });
   // refresh button label/icon
   document.getElementById('stackBtnName').textContent = st.label;
@@ -1088,20 +1113,20 @@ const TEAM_RELATION = {
     devops:()=>"DevOps wires repo events (push, merge) as the triggers that kick off the whole pipeline.",
   },
   maven:{
-    dev:   ()=>"Developers define dependencies and build logic in the POM and run builds locally.",
-    devops:()=>"DevOps runs Maven inside the CI job to produce the build artifact automatically on every change.",
+    dev:   t=>`Developers define dependencies and build logic for ${t} and run builds locally.`,
+    devops:t=>`DevOps runs ${t} inside the CI job to produce the build artifact automatically on every change.`,
   },
   selenium:{
-    qa:    ()=>"Testers author and maintain the automated functional/end-to-end browser tests run here.",
-    devops:()=>"DevOps schedules these tests in the pipeline so failures gate a release automatically.",
+    qa:    t=>`Testers author and maintain the automated tests run by ${t}.`,
+    devops:t=>`DevOps schedules ${t} in the pipeline so failures gate a release automatically.`,
   },
   sonarqube:{
     dev:   ()=>"Developers review SonarQube findings to fix bugs, code smells, and security hotspots in their code.",
     devops:()=>"DevOps enforces quality gates here that can pass or fail the pipeline.",
   },
   nexus:{
-    dev:   ()=>"Developers consume shared libraries and publish their build artifacts to Nexus.",
-    devops:()=>"DevOps configures Nexus as the trusted, versioned artifact store the pipeline pushes to and pulls from.",
+    dev:   t=>`Developers consume shared libraries and publish their build artifacts to ${t}.`,
+    devops:t=>`DevOps configures ${t} as the trusted, versioned artifact store the pipeline pushes to and pulls from.`,
   },
   jenkins:{
     devops:()=>"DevOps owns the pipeline-as-code that orchestrates every build/test/deploy stage here.",
@@ -1112,8 +1137,8 @@ const TEAM_RELATION = {
     devops:()=>"DevOps builds and ships the container images as part of the automated pipeline.",
   },
   tomcat:{
-    dev:   ()=>"Developers target Tomcat as the servlet runtime their Java web app is deployed onto.",
-    devops:()=>"DevOps bakes Tomcat into the base image so the runtime ships consistently with the app.",
+    dev:   t=>`Developers target ${t} as the runtime their app is deployed onto.`,
+    devops:t=>`DevOps bakes ${t} into the base image so the runtime ships consistently with the app.`,
   },
   ansible:{
     devops:()=>"DevOps writes the playbooks that automate provisioning and configuration of target hosts.",
@@ -1166,7 +1191,7 @@ const TEAM_RELATION = {
 
 function teamRelationText(nodeId, teamKey, toolName){
   const perTool = TEAM_RELATION[nodeId];
-  if(perTool && perTool[teamKey]) return perTool[teamKey]();
+  if(perTool && perTool[teamKey]) return perTool[teamKey](toolName);
   return TEAM_RELATION.generic[teamKey](toolName);
 }
 
@@ -1516,6 +1541,17 @@ stage.addEventListener('touchend',()=>{isPanning=false;});
 /* =========================================================
    INIT  — hide hint, fit view, staggered node entrance
    ========================================================= */
+/* ---------- Legend collapse / expand ---------- */
+(function(){
+  const legend=document.getElementById('legend');
+  const btn=document.getElementById('legendToggle');
+  if(btn) btn.addEventListener('click',()=>{
+    const collapsed=legend.classList.toggle('collapsed');
+    btn.title = collapsed ? 'Expand legend' : 'Collapse legend';
+    btn.setAttribute('aria-label', btn.title);
+  });
+})();
+
 /* ---------- Stack switcher dropdown ---------- */
 (function(){
   const sw=document.getElementById('stackSwitch');
