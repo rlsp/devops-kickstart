@@ -224,6 +224,9 @@
   .callout-ico{color:var(--amber,#f2d49b);font-size:16px;flex:0 0 auto;margin-top:2px;}
   .callout-body{font-size:13px;line-height:1.6;color:var(--ink);}
   .callout-body strong{color:var(--amber,#f2d49b);font-weight:700;}
+  .callout-body code{font-family:'Spline Sans Mono',monospace;font-size:12px;
+    background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;color:#e6d9b8;}
 
   /* jargon terms: dotted underline + hover tooltip (plain-language definition) */
   .jargon{position:relative;border-bottom:1.5px dotted var(--blue,#8fb8f0);cursor:help;
@@ -281,11 +284,34 @@
   /* ---------- HUD ---------- */
   #hud{position:fixed;left:22px;top:22px;z-index:120;}
   .brand{font-family:'Fraunces',serif;font-size:25px;font-weight:700;letter-spacing:-.5px;
-    display:flex;align-items:center;gap:11px;white-space:nowrap;}
-  .brand .bdot{width:13px;height:13px;border-radius:50%;background:var(--green);
-    box-shadow:0 0 14px var(--green);animation:pulse 2s ease-in-out infinite;}
-  @keyframes pulse{50%{opacity:.4;transform:scale(.8);}}
+    white-space:nowrap;margin-bottom:10px;}
   .brand-sub{color:var(--ink-soft);font-size:12.5px;margin-top:4px;font-family:'Spline Sans Mono',monospace;}
+
+  /* stack switcher */
+  .stack-switch{position:relative;font-family:'Space Grotesk',sans-serif;display:inline-block;}
+  .stack-btn{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    background:rgba(20,29,40,.9);border:1px solid var(--line);border-radius:10px;
+    padding:7px 13px;color:var(--ink);font-size:14px;font-weight:600;letter-spacing:0;
+    transition:.18s;}
+  .stack-btn:hover{border-color:var(--green-deep);background:rgba(40,55,75,.9);}
+  .stack-btn-label{color:var(--ink-dim);font-weight:500;font-size:13px;}
+  #stackBtnIco{font-size:16px;color:var(--green);}
+  .stack-caret{font-size:11px;color:var(--ink-dim);transition:transform .2s;margin-left:2px;}
+  .stack-switch.open .stack-caret{transform:rotate(180deg);}
+  .stack-menu{position:absolute;top:calc(100% + 8px);left:0;min-width:190px;z-index:130;
+    background:rgba(16,23,31,.96);backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:12px;padding:6px;
+    box-shadow:0 18px 40px rgba(0,0,0,.55);
+    opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .18s,transform .18s;}
+  .stack-switch.open .stack-menu{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .stack-opt{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;border-radius:8px;
+    cursor:pointer;background:transparent;border:none;color:var(--ink-soft);
+    font-family:inherit;font-size:13.5px;font-weight:600;text-align:left;transition:.14s;}
+  .stack-opt:hover{background:rgba(255,255,255,.06);color:var(--ink);}
+  .stack-opt i{width:20px;text-align:center;font-size:16px;}
+  .stack-opt.active{background:rgba(63,158,87,.14);color:var(--ink);}
+  .stack-opt.active::after{content:"\f00c";font-family:"Font Awesome 6 Free";font-weight:900;
+    margin-left:auto;font-size:11px;color:var(--green);}
 
   #controls{position:fixed;left:22px;bottom:22px;z-index:120;display:flex;gap:8px;align-items:center;}
   .ctrl{width:42px;height:42px;border-radius:11px;border:1px solid var(--line);
@@ -333,6 +359,15 @@
 <!-- HUD -->
 <div id="hud">
   <div class="brand">DevOps Tooling &amp; Process Interaction</div>
+  <span id="stackSwitch" class="stack-switch">
+    <button id="stackBtn" class="stack-btn" type="button">
+      <span class="stack-btn-label">Stack:</span>
+      <i id="stackBtnIco" class="fa-brands fa-java"></i>
+      <span id="stackBtnName">Java</span>
+      <i class="fa-solid fa-chevron-down stack-caret"></i>
+    </button>
+    <div id="stackMenu" class="stack-menu"></div>
+  </span>
 </div>
 
 <div class="legend" id="legend">
@@ -576,6 +611,186 @@ const INFO = {
     flow:[["←","Launched from the image"],["↻","Run, scaled & healed by Kubernetes at runtime"]],
     points:["A live, isolated instance of the image","Many run in parallel for scaling and resilience","Disposable — replaced rather than patched in place"]},
 };
+
+/* Snapshot the base (Java) definitions so stack-switching can reset cleanly */
+const BASE_NODES = {}; Object.entries(NODES).forEach(([k,v])=>BASE_NODES[k]=Object.assign({},v));
+const BASE_INFO  = {}; Object.entries(INFO ).forEach(([k,v])=>BASE_INFO[k]=v);
+
+/* =========================================================
+   STACKS — per-language tool overrides applied on top of the
+   base (Java) NODES/INFO. Each maps node-id -> partial fields.
+   ========================================================= */
+const STACKS = {
+  java: {
+    label:"Java", icon:"fa-brands fa-java",
+    nodes:{
+      maven:{icon:"fa-brands fa-java", title:"Maven / Gradle", sub:"Build / Packaging"},
+      selenium:{icon:"fa-solid fa-vial", title:"Selenium", sub:"Functional Tests"},
+      tomcat:{icon:"fa-solid fa-server", title:"Tomcat", sub:"Web Servlet"},
+      nexus:{icon:"fa-solid fa-box-archive", title:"Nexus", sub:"Artifact Management / Registry"},
+    },
+    info:{
+      maven:{cat:"Build Stage",roles:["Build","Dependency Mgmt"],
+        desc:"The Java build tool compiles the checked-out source, resolves dependencies, runs unit tests, and packages everything into a deployable JAR or WAR. Two interchangeable choices dominate: Maven (convention-driven, declarative XML) and Gradle (flexible, scriptable, with incremental builds and a build cache). They fill the same slot in the pipeline — pick one per project.",
+        note:"<strong>Maven vs Gradle:</strong> both produce the same kind of artifact and plug into the pipeline identically. <strong>Maven</strong> uses a declarative <code>pom.xml</code> and rigid lifecycle — predictable and ubiquitous. <strong>Gradle</strong> uses a programmable <code>build.gradle</code> (Groovy/Kotlin DSL) with incremental builds and a build cache, so it's typically faster on large projects. Choose one; they're alternatives, not stages.",
+        flow:[["←","Receives source code to compile"],["→","Produces a packaged executable"]],
+        points:["Maven: declarative pom.xml, standard lifecycle (validate → compile → test → package)","Gradle: scriptable build.gradle (Groovy/Kotlin), incremental builds & build cache","Both resolve dependencies from central & internal repos","Both upload the built artifact to Nexus"]},
+      tomcat:{cat:"Runtime",roles:["Web Servlet","Java Runtime"],
+        desc:"Tomcat is the Java servlet container that runs the web application. Here it serves as the base image layer Docker builds on top of.",
+        flow:[["→","Used as the base image for Docker"]],
+        points:["Executes Java WAR applications","Lightweight servlet & JSP container","Bundled into the Docker image","Provides the app's HTTP runtime"]},
+    }
+  },
+  node: {
+    label:"Node.js", icon:"fa-brands fa-node-js",
+    nodes:{
+      maven:{icon:"fa-brands fa-npm", title:"npm / Yarn", sub:"Build / Packaging"},
+      selenium:{icon:"fa-solid fa-vial", title:"Jest / Cypress", sub:"Unit & E2E Tests"},
+      tomcat:{icon:"fa-brands fa-node-js", title:"Node.js Runtime", sub:"Server Runtime"},
+      nexus:{icon:"fa-brands fa-npm", title:"npm Registry / Nexus", sub:"Package Registry"},
+    },
+    info:{
+      maven:{cat:"Build Stage",roles:["Build","Dependency Mgmt"],
+        desc:"npm (or Yarn/pnpm) installs dependencies declared in package.json, runs build scripts (bundling/transpiling via tools like webpack or esbuild), and produces the deployable app bundle.",
+        flow:[["←","Receives source code"],["→","Produces a built bundle / package"]],
+        points:["Dependencies declared in package.json","Scripts run build, lint & test steps","Bundles/transpiles JS/TS for production","Publishes to an npm registry"]},
+      selenium:{cat:"Test Stage",roles:["Unit & E2E Testing","Automation"],
+        desc:"Jest runs fast unit tests while Cypress (or Playwright) drives a real browser for end-to-end checks against the built app.",
+        flow:[["←","Test run triggered after build"],["←","Orchestrated by the CI server"]],
+        points:["Jest for unit/integration tests","Cypress/Playwright for browser E2E","Catches regressions before deploy","Failures can block the pipeline"]},
+      tomcat:{cat:"Runtime",roles:["Server Runtime","JS Engine"],
+        desc:"The Node.js runtime executes the server-side JavaScript directly — no separate servlet container needed. It's the base layer Docker builds on.",
+        flow:[["→","Used as the base image for Docker"]],
+        points:["Runs server-side JavaScript/TypeScript","Event-driven, non-blocking I/O","Bundled into the Docker image","Often fronted by a process manager (PM2)"]},
+      nexus:{cat:"Artifact Stage",roles:["Package Registry","Storage"],
+        desc:"The npm registry (public, or a private/proxy registry like Nexus or Verdaccio) stores and versions the published packages and caches dependencies for reproducible installs.",
+        flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
+        points:["Versioned package storage","Proxies & caches the public npm registry","Single source of truth for internal packages"]},
+    }
+  },
+  angular: {
+    label:"Angular", icon:"fa-brands fa-angular",
+    nodes:{
+      maven:{icon:"fa-brands fa-angular", title:"Angular CLI", sub:"Build / Bundling"},
+      selenium:{icon:"fa-solid fa-vial", title:"Karma / Cypress", sub:"Unit & E2E Tests"},
+      tomcat:{icon:"fa-solid fa-server", title:"Nginx (static)", sub:"Static Web Server"},
+      nexus:{icon:"fa-brands fa-npm", title:"npm Registry / Nexus", sub:"Package Registry"},
+    },
+    info:{
+      maven:{cat:"Build Stage",roles:["Build","Bundling"],
+        desc:"The Angular CLI (ng build) compiles TypeScript, resolves npm dependencies, and produces an optimized static bundle (HTML/CSS/JS) ready to be served.",
+        flow:[["←","Receives source code"],["→","Produces optimized static assets"]],
+        points:["ng build with AOT compilation","Tree-shaking & minification for production","Dependencies from package.json / npm","Outputs static files served by a web server"]},
+      selenium:{cat:"Test Stage",roles:["Unit & E2E Testing","Automation"],
+        desc:"Karma/Jasmine run component and unit tests; Cypress (or Protractor's successor Playwright) drives the browser for end-to-end tests.",
+        flow:[["←","Test run triggered after build"],["←","Orchestrated by the CI server"]],
+        points:["Karma + Jasmine for unit tests","Cypress/Playwright for E2E","Runs headless in CI","Failures can block the pipeline"]},
+      tomcat:{cat:"Runtime",roles:["Static Web Server"],
+        desc:"Angular builds to static files, so a lightweight web server like Nginx (or a CDN) serves the bundle. It's the base image layer Docker builds on.",
+        flow:[["→","Used as the base image for Docker"]],
+        points:["Serves pre-built static assets","No application runtime needed at serve time","Nginx config handles routing/caching","Bundled into the Docker image"]},
+      nexus:{cat:"Artifact Stage",roles:["Package Registry","Storage"],
+        desc:"An npm registry (public or a private/proxy like Nexus) stores dependencies and any publishable libraries, caching them for reproducible builds.",
+        flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
+        points:["Versioned package storage","Proxies & caches the public npm registry","Single source of truth for internal libs"]},
+    }
+  },
+  dotnet: {
+    label:".NET", icon:"fa-brands fa-microsoft",
+    nodes:{
+      maven:{icon:"fa-solid fa-hashtag", title:".NET CLI / MSBuild", sub:"Build / Publish"},
+      selenium:{icon:"fa-solid fa-vial", title:"xUnit / Selenium", sub:"Unit & E2E Tests"},
+      tomcat:{icon:"fa-solid fa-server", title:"Kestrel / IIS", sub:"Web Server"},
+      nexus:{icon:"fa-solid fa-box-archive", title:"NuGet / Nexus", sub:"Package Registry"},
+    },
+    info:{
+      maven:{cat:"Build Stage",roles:["Build","Dependency Mgmt"],
+        desc:"The .NET CLI (dotnet build / publish) compiles C# via MSBuild, restores NuGet dependencies, runs tests, and produces a self-contained or framework-dependent deployable.",
+        flow:[["←","Receives source code to compile"],["→","Produces a published build"]],
+        points:["dotnet restore / build / publish","NuGet package restore","Compiles C# to IL via MSBuild","Output is a runnable publish folder/DLL"]},
+      selenium:{cat:"Test Stage",roles:["Unit & E2E Testing","Automation"],
+        desc:"xUnit (or NUnit/MSTest) runs unit tests; Selenium drives the browser for end-to-end checks against the running app.",
+        flow:[["←","Test run triggered after build"],["←","Orchestrated by the CI server"]],
+        points:["xUnit/NUnit for unit tests","Selenium for browser E2E","dotnet test in CI","Failures can block the pipeline"]},
+      tomcat:{cat:"Runtime",roles:["Web Server",".NET Runtime"],
+        desc:"Kestrel is the cross-platform .NET web server that runs the app (often behind IIS or a reverse proxy). It's the base image layer Docker builds on.",
+        flow:[["→","Used as the base image for Docker"]],
+        points:["Kestrel cross-platform web server","Optionally fronted by IIS / Nginx","Runs the published .NET app","Bundled into the Docker image"]},
+      nexus:{cat:"Artifact Stage",roles:["Package Registry","Storage"],
+        desc:"NuGet feeds (public nuget.org or a private/proxy like Nexus or Azure Artifacts) store and version packages, caching dependencies for reproducible builds.",
+        flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
+        points:["Versioned NuGet package storage","Proxies & caches nuget.org","Single source of truth for internal packages"]},
+    }
+  },
+  python: {
+    label:"Python", icon:"fa-brands fa-python",
+    nodes:{
+      maven:{icon:"fa-brands fa-python", title:"pip / Poetry", sub:"Build / Packaging"},
+      selenium:{icon:"fa-solid fa-vial", title:"pytest / Selenium", sub:"Unit & E2E Tests"},
+      tomcat:{icon:"fa-solid fa-server", title:"Gunicorn / uWSGI", sub:"WSGI App Server"},
+      nexus:{icon:"fa-brands fa-python", title:"PyPI / Nexus", sub:"Package Registry"},
+    },
+    info:{
+      maven:{cat:"Build Stage",roles:["Build","Dependency Mgmt"],
+        desc:"pip (or Poetry/uv) installs dependencies from requirements.txt or pyproject.toml, runs tests, and packages the app — often as a wheel or a built container layer.",
+        flow:[["←","Receives source code"],["→","Produces installed deps / a wheel"]],
+        points:["Dependencies via requirements.txt / pyproject.toml","Virtual environments isolate installs","Builds wheels/sdists for distribution","Publishes to a PyPI-compatible index"]},
+      selenium:{cat:"Test Stage",roles:["Unit & E2E Testing","Automation"],
+        desc:"pytest runs unit and integration tests; Selenium drives the browser for end-to-end checks against the running app.",
+        flow:[["←","Test run triggered after build"],["←","Orchestrated by the CI server"]],
+        points:["pytest for unit/integration tests","Selenium for browser E2E","Runs in a virtual environment in CI","Failures can block the pipeline"]},
+      tomcat:{cat:"Runtime",roles:["WSGI/ASGI App Server"],
+        desc:"Gunicorn or uWSGI (for WSGI), or Uvicorn (for ASGI), runs the Python web app behind the scenes — usually fronted by Nginx. It's the base image layer Docker builds on.",
+        flow:[["→","Used as the base image for Docker"]],
+        points:["Gunicorn/uWSGI/Uvicorn app server","Runs Django/Flask/FastAPI apps","Typically fronted by Nginx","Bundled into the Docker image"]},
+      nexus:{cat:"Artifact Stage",roles:["Package Registry","Storage"],
+        desc:"A PyPI index (public pypi.org or a private/proxy like Nexus or devpi) stores and versions packages, caching dependencies for reproducible installs.",
+        flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
+        points:["Versioned Python package storage","Proxies & caches pypi.org","Single source of truth for internal packages"]},
+    }
+  },
+};
+const STACK_ORDER = ["java","node","angular","dotnet","python"];
+
+// deep-merge stack overrides into base NODES/INFO, then re-render
+let currentStack = "java";
+function applyStack(key){
+  currentStack = key;
+  const st = STACKS[key];
+  // reset to base then overlay (base values were captured at load)
+  Object.entries(BASE_NODES).forEach(([id,base])=>{
+    NODES[id] = Object.assign({}, base, (st.nodes[id]||{}));
+  });
+  Object.entries(BASE_INFO).forEach(([id,base])=>{
+    INFO[id] = (st.info && st.info[id]) ? Object.assign({}, base, st.info[id]) : base;
+  });
+  // refresh button label/icon
+  document.getElementById('stackBtnName').textContent = st.label;
+  const btnIcoWrap = document.getElementById('stackBtnIco');
+  if(btnIcoWrap){
+    const fresh=document.createElement('i'); fresh.className=st.icon; fresh.id='stackBtnIco';
+    btnIcoWrap.replaceWith(fresh);
+  }
+  // mark active option
+  document.querySelectorAll('.stack-opt').forEach(o=>o.classList.toggle('active', o.dataset.stack===key));
+  // re-render affected blocks in place (only title/sub/icon change)
+  ['maven','selenium','tomcat','nexus'].forEach(id=>{
+    const el=document.getElementById('node-'+id);
+    const n=NODES[id];
+    if(el && n){
+      const titleSpan = el.querySelector('.n-title > span:last-child');
+      if(titleSpan) titleSpan.textContent = n.title;
+      const sub = el.querySelector('.n-sub');
+      if(sub) sub.textContent = n.sub;
+      const ico = el.querySelector('.n-ico');
+      if(ico){ ico.innerHTML = `<i class="${n.icon}"></i>`; }  // fresh <i>, FA will reconvert
+    }
+  });
+  // let Font Awesome turn the new <i> tags into SVGs
+  if(window.FontAwesome && window.FontAwesome.dom){ try{window.FontAwesome.dom.i2svg();}catch(e){} }
+  // if sidebar open on an affected block, refresh it
+  if(selectedId && STACKS[key].info && STACKS[key].info[selectedId]) openSidebar(selectedId);
+}
 
 /* =========================================================
    RENDER NODES, ANNOTATIONS, GROUPS
@@ -1301,6 +1516,31 @@ stage.addEventListener('touchend',()=>{isPanning=false;});
 /* =========================================================
    INIT  — hide hint, fit view, staggered node entrance
    ========================================================= */
+/* ---------- Stack switcher dropdown ---------- */
+(function(){
+  const sw=document.getElementById('stackSwitch');
+  const btn=document.getElementById('stackBtn');
+  const menu=document.getElementById('stackMenu');
+  // build options
+  menu.innerHTML = STACK_ORDER.map(k=>{
+    const s=STACKS[k];
+    return `<button class="stack-opt" type="button" data-stack="${k}"><i class="${s.icon}"></i>${s.label}</button>`;
+  }).join('');
+  // toggle open/close
+  btn.addEventListener('click',e=>{ e.stopPropagation(); sw.classList.toggle('open'); });
+  document.addEventListener('click',e=>{ if(!sw.contains(e.target)) sw.classList.remove('open'); });
+  // select a stack
+  menu.querySelectorAll('.stack-opt').forEach(opt=>{
+    opt.addEventListener('click',e=>{
+      e.stopPropagation();
+      applyStack(opt.dataset.stack);
+      sw.classList.remove('open');
+    });
+  });
+  // initialize on the default (Java)
+  applyStack('java');
+})();
+
 window.addEventListener('load',()=>{
   // Ensure Font Awesome converts every <i> (incl. dynamically injected ones) to SVG
   if(window.FontAwesome && window.FontAwesome.dom){
