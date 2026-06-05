@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Tooling &amp; Process Interaction — Interactive Map</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Font Awesome (SVG+JS build: inlines icons as SVG, no separate webfont file to fetch) -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"></script>
+<!-- Fallback: also load the webfont CSS in case JS is blocked -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0d1117;
+    --bg-1:#131a24;
+    --bg-2:#1a2332;
+    --grid:#1c2733;
+    --ink:#e8eef5;
+    --ink-soft:#9bb0c4;
+    --ink-dim:#5d728a;
+    --green:#9ed8a8;
+    --green-deep:#3f9e57;
+    --green-glow:rgba(110,200,135,.45);
+    --blue:#8fb8f0;
+    --blue-deep:#3d6fc4;
+    --blue-glow:rgba(120,165,240,.4);
+    --amber:#f2d49b;
+    --amber-deep:#c79a40;
+    --node-green:#1c3326;
+    --node-green-b:#3f9e57;
+    --node-blue:#1a2742;
+    --node-blue-b:#4f7bd1;
+    --node-amber:#33291a;
+    --node-amber-b:#c79a40;
+    --edge:#37485c;
+    --edge-orch:#4f7bd1;
+    --artifact:#c4a6ff;
+    --artifact-b:#7c5cd6;
+    --artifact-glow:rgba(140,100,220,.22);
+    --panel:#10171f;
+    --line:#243140;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg-0);color:var(--ink);
+    font-family:'Space Grotesk',sans-serif;-webkit-font-smoothing:antialiased;}
+
+  /* ---------- Atmosphere ---------- */
+  #stage{position:fixed;inset:0;
+    background:
+      radial-gradient(1200px 700px at 70% -10%, rgba(63,158,87,.10), transparent 60%),
+      radial-gradient(1000px 600px at 10% 110%, rgba(79,123,209,.10), transparent 60%),
+      var(--bg-0);
+    cursor:grab;}
+  #stage.grabbing{cursor:grabbing;}
+  #stage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;
+    background:radial-gradient(circle at center, transparent 55%, rgba(0,0,0,.55) 100%);}
+
+  #world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;}
+  .grid-bg{position:absolute;left:-2000px;top:-2000px;width:8000px;height:6000px;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:46px 46px;opacity:.5;}
+
+  /* ---------- SVG edges ---------- */
+  #edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;}
+  .edge{fill:none;stroke:var(--edge);stroke-width:2.4;pointer-events:none;
+    stroke-linejoin:round;stroke-linecap:round;
+    transition:stroke .18s,stroke-width .18s,opacity .18s;}
+  .edge.orch{stroke:var(--edge-orch);stroke-dasharray:8 7;opacity:.72;pointer-events:none;
+    animation:flow 1.2s linear infinite;}
+  @keyframes flow{to{stroke-dashoffset:-30;}}
+  .edge.hot{stroke:var(--green);stroke-width:3.8;opacity:1;}
+  .edge.orch.hot{stroke:var(--blue);opacity:1;}
+
+  /* ---------- Edge hotspot divs (plain HTML in #world) ---------- */
+  .edge-zone{position:absolute;transform:translate(-50%,-50%);
+    width:64px;height:32px;border-radius:8px;z-index:20;cursor:default;
+    background:transparent;border:1.5px dashed transparent;
+    transition:background .14s,border-color .14s;}
+  .edge-zone:hover{background:rgba(45,62,82,.7);border-color:rgba(150,180,210,.35);}
+  .edge-zone.orch:hover{background:rgba(30,48,90,.75);border-color:rgba(100,140,220,.4);}
+
+  /* ---------- Edge tooltip ---------- */
+  #edgeTip{position:fixed;z-index:300;pointer-events:none;
+    transform:translate(-50%,-120%);
+    background:linear-gradient(160deg,#1e2d3e,#131c28);
+    border:1px solid #304560;border-radius:9px;
+    padding:6px 14px 7px;
+    font:600 12px 'Spline Sans Mono',monospace;
+    color:var(--ink);white-space:nowrap;letter-spacing:.3px;
+    box-shadow:0 8px 24px rgba(0,0,0,.65);
+    opacity:0;transition:opacity .12s;display:none;}
+  #edgeTip.show{opacity:1;display:block;}
+  #edgeTip.orch{border-color:rgba(79,123,209,.55);}
+  #edgeTip .ta{margin-right:6px;color:var(--green);}
+  #edgeTip.orch .ta{color:var(--blue);}
+
+  /* ---------- Nodes ---------- */
+  .node{position:absolute;border-radius:14px;padding:14px 16px;cursor:pointer;
+    background:linear-gradient(180deg,var(--node-green),#162519);
+    border:1.5px solid var(--node-green-b);
+    box-shadow:0 8px 22px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+    transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .2s,filter .2s;
+    user-select:none;}
+  .node:hover{transform:translateY(-3px) scale(1.03);
+    box-shadow:0 14px 34px rgba(0,0,0,.6),0 0 0 4px var(--green-glow);
+    z-index:30;}
+  .node.blue{background:linear-gradient(180deg,var(--node-blue),#121b2e);border-color:var(--node-blue-b);}
+  .node.blue:hover{box-shadow:0 14px 34px rgba(0,0,0,.6),0 0 0 4px var(--blue-glow);}
+  .node.amber{background:linear-gradient(180deg,var(--node-amber),#221a10);border-color:var(--node-amber-b);}
+  .node.amber:hover{box-shadow:0 14px 34px rgba(0,0,0,.6),0 0 0 4px rgba(199,154,64,.4);}
+  .node.selected{outline:2px solid var(--green);}
+  .node.dimmed{opacity:.28;filter:saturate(.4);}
+
+  /* fixed-height nodes (foundation row): height is locked, content vertically centered */
+  .node.fixed{display:flex;flex-direction:column;justify-content:center;overflow:hidden;}
+  .node.fixed .n-title{line-height:1.1;}
+  .node.fixed .n-sub{margin-top:2px;}
+
+  .node .n-title{font-weight:700;font-size:15px;letter-spacing:.2px;display:flex;align-items:center;gap:9px;line-height:1.15;}
+  .node .n-sub{font-size:11.5px;color:var(--ink-soft);margin-top:3px;line-height:1.25;font-family:'Spline Sans Mono',monospace;padding-left:39px;}
+  .node .n-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
+    font-size:22px;color:#a6e7b6;}
+  .node.blue .n-ico{font-size:22px;color:#cfe0ff;}
+  .node.amber .n-ico{font-size:22px;color:#f7e6bf;}
+
+  /* small annotation nodes (artifacts/files) */
+  .anno{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px;
+    color:var(--ink-soft);font-size:12px;font-weight:600;text-align:center;pointer-events:none;
+    text-shadow:0 1px 6px #000;}
+  .anno i{font-size:30px;color:var(--ink-soft);opacity:.85;}
+
+  /* artifact chips — distinct violet colour so data artifacts read clearly */
+  .chip{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:7px;border-radius:14px;padding:12px 14px;pointer-events:none;text-align:center;
+    background:linear-gradient(180deg,#241b38,#191226);
+    border:1.5px solid var(--artifact-b);
+    box-shadow:0 8px 20px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06),
+               0 0 0 4px var(--artifact-glow);
+    transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .25s,filter .2s,opacity .2s;}
+  .chip.clickable{pointer-events:auto;cursor:pointer;}
+  .chip.clickable:hover{transform:translateY(-3px) scale(1.03);
+    box-shadow:0 14px 34px rgba(0,0,0,.6),0 0 0 4px rgba(160,120,230,.5);z-index:30;}
+  .chip.selected{outline:2px solid var(--artifact,#c4a6ff);}
+  .chip.dimmed{opacity:.28;filter:saturate(.4);}
+  .chip i{font-size:26px;color:#d9c2ff;}
+  .chip .chip-l{font-size:11.5px;font-weight:700;letter-spacing:.3px;color:#d9c8ff;
+    font-family:'Spline Sans Mono',monospace;line-height:1.2;}
+
+  /* container groups */
+  .group{position:absolute;border:1.5px dashed var(--line);border-radius:18px;
+    background:rgba(255,255,255,.015);}
+  .group .g-label{position:absolute;bottom:10px;left:0;right:0;text-align:center;
+    color:var(--ink-dim);font-size:13px;font-weight:600;letter-spacing:.5px;}
+
+  /* labelled groups (pipeline + foundations) — label sits on the top border */
+  .group.tagged{border-color:var(--g-accent,#2c3a4c);
+    background:var(--g-fill,rgba(255,255,255,.012));}
+  .group.tagged .g-tag{position:absolute;top:-13px;left:26px;display:flex;align-items:center;gap:8px;
+    padding:4px 14px;border-radius:30px;font-family:'Spline Sans Mono',monospace;
+    font-size:12px;font-weight:600;letter-spacing:.5px;
+    background:var(--g-tagbg,#16202c);color:var(--g-accent,#7d92a6);
+    border:1.5px solid var(--g-accent,#2c3a4c);box-shadow:0 4px 12px rgba(0,0,0,.4);}
+  .group.tagged .g-note{position:absolute;top:16px;right:20px;font-size:11px;font-weight:500;
+    color:var(--ink-dim);font-family:'Spline Sans Mono',monospace;opacity:.85;letter-spacing:.3px;}
+
+  /* ---------- Fan-out bubble ---------- */
+  .fan{position:absolute;display:flex;gap:8px;pointer-events:none;z-index:40;
+    transform:transl(-50%,0);}
+  .fan-chip{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    background:linear-gradient(180deg,#1f2c3c,#141d28);border:1.5px solid var(--green-deep);
+    color:var(--green);font-size:14px;box-shadow:0 6px 16px rgba(0,0,0,.5);
+    opacity:0;transform:translateY(10px) scale(.5);
+    animation:pop .32s cubic-bezier(.2,1.3,.4,1) forwards;}
+  @keyframes pop{to{opacity:1;transform:translateY(0) scale(1);}}
+  /* violet chips: fan icons all share one color */
+  .fan.violet .fan-chip{border-color:var(--artifact-b,#7c5cd6);color:var(--artifact,#c4a6ff);}
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{position:fixed;top:0;right:0;height:100%;width:430px;max-width:92vw;z-index:200;
+    background:linear-gradient(180deg,var(--panel),#0a0f15);
+    border-left:1px solid var(--line);
+    box-shadow:-30px 0 60px rgba(0,0,0,.55);
+    transform:translateX(105%);transition:transform .42s cubic-bezier(.16,1,.3,1);
+    display:flex;flex-direction:column;overflow-x:hidden;}
+  #sidebar.open{transform:translateX(0);}
+  .sb-head{padding:26px 26px 20px;border-bottom:1px solid var(--line);position:relative;
+    background:linear-gradient(180deg,rgba(63,158,87,.10),transparent);}
+  .sb-head.blue{background:linear-gradient(180deg,rgba(79,123,209,.12),transparent);}
+  .sb-head.amber{background:linear-gradient(180deg,rgba(199,154,64,.12),transparent);}
+  .sb-head.violet{background:linear-gradient(180deg,rgba(160,120,230,.14),transparent);}
+  .sb-cat{font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:2px;
+    text-transform:uppercase;color:var(--green);font-weight:600;}
+  .sb-head.blue .sb-cat{color:var(--blue);}
+  .sb-head.amber .sb-cat{color:var(--amber);}
+  .sb-head.violet .sb-cat{color:var(--artifact,#c4a6ff);}
+  .sb-title{font-family:'Fraunces',serif;font-size:30px;font-weight:600;margin:8px 0 4px;line-height:1.05;display:flex;gap:14px;align-items:center;}
+  .sb-title .ti{width:50px;height:50px;border-radius:13px;display:grid;place-items:center;flex:0 0 auto;
+    background:rgba(110,200,135,.12);color:var(--green);font-size:24px;}
+  .sb-head.blue .ti{background:rgba(120,165,240,.14);color:var(--blue);}
+  .sb-head.amber .ti{background:rgba(199,154,64,.14);color:var(--amber);}
+  .sb-head.violet .ti{background:rgba(160,120,230,.16);color:var(--artifact,#c4a6ff);}
+  .sb-sub{color:var(--ink-soft);font-size:13.5px;font-family:'Spline Sans Mono',monospace;}
+  .sb-close{position:absolute;top:18px;right:18px;width:36px;height:36px;border-radius:10px;
+    border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink-soft);
+    cursor:pointer;font-size:15px;transition:.2s;}
+  .sb-close:hover{background:rgba(255,255,255,.1);color:var(--ink);transform:rotate(90deg);}
+  .sb-body{padding:24px 26px 40px;overflow-y:auto;flex:1;}
+  .sb-body::-webkit-scrollbar{width:8px;}
+  .sb-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;}
+  .sb-body p{color:var(--ink);font-size:14.5px;line-height:1.65;}
+  .sb-body h6{font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--ink-dim);margin:26px 0 12px;font-weight:600;}
+  .sb-body h6:first-child{margin-top:0;}
+  .scope-pills{margin-bottom:4px;}
+  .role-pill{display:inline-block;padding:4px 12px;border-radius:30px;font-size:12px;font-weight:600;
+    margin:0 6px 6px 0;background:rgba(110,200,135,.12);color:var(--green);
+    border:1px solid rgba(110,200,135,.25);font-family:'Spline Sans Mono',monospace;}
+  .callout{display:flex;gap:12px;margin:18px 0 4px;padding:14px 16px;border-radius:11px;
+    background:rgba(242,212,155,.08);border:1px solid rgba(242,212,155,.30);
+    border-left:3px solid var(--amber,#f2d49b);}
+  .callout-ico{color:var(--amber,#f2d49b);font-size:16px;flex:0 0 auto;margin-top:2px;}
+  .callout-body{font-size:13px;line-height:1.6;color:var(--ink);}
+  .callout-body strong{color:var(--amber,#f2d49b);font-weight:700;}
+
+  /* jargon terms: dotted underline + hover tooltip (plain-language definition) */
+  .jargon{position:relative;border-bottom:1.5px dotted var(--blue,#8fb8f0);cursor:help;
+    color:inherit;}
+  .jargon::after{content:attr(data-def);position:absolute;left:0;bottom:calc(100% + 9px);
+    width:max-content;max-width:var(--tip-max,280px);padding:10px 12px;border-radius:9px;z-index:400;
+    background:linear-gradient(160deg,#1e2d3e,#131c28);border:1px solid #30506e;
+    color:var(--ink);font-family:'Space Grotesk',sans-serif;font-weight:400;
+    font-size:12px;line-height:1.5;letter-spacing:.1px;text-align:left;white-space:normal;
+    box-shadow:0 10px 28px rgba(0,0,0,.6);
+    opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .15s,transform .15s;}
+  .jargon::before{content:"";position:absolute;left:14px;bottom:calc(100% + 3px);z-index:401;
+    width:11px;height:11px;background:#131c28;border-right:1px solid #30506e;border-bottom:1px solid #30506e;
+    transform:rotate(45deg);opacity:0;transition:opacity .15s;pointer-events:none;}
+  .jargon:hover::after{opacity:1;transform:translateY(0);}
+  .jargon:hover::before{opacity:1;}
+  /* flip tooltip below the term for items near the top of the panel */
+  .jargon.below::after{bottom:auto;top:calc(100% + 9px);transform:translateY(-4px);}
+  .jargon.below:hover::after{transform:translateY(0);}
+  .jargon.below::before{bottom:auto;top:calc(100% + 3px);transform:rotate(225deg);}
+  /* anchor tooltip to the right edge when the term sits in the right half (avoids overflow) */
+  .jargon.flip-right::after{left:auto;right:0;}
+  .jargon.flip-right::before{left:auto;right:14px;}
+  .sb-list{list-style:none;padding:0;margin:0;}
+  .sb-list li{padding:11px 0 11px 40px;border-bottom:1px solid var(--line);position:relative;
+    font-size:13.8px;color:var(--ink-soft);line-height:1.5;}
+  .sb-list li:last-child{border-bottom:none;}
+  .sb-list li i,.sb-list li svg{position:absolute;left:0;top:15px;width:18px;text-align:center;
+    color:var(--green);font-size:14px;}
+  .flowstep{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;
+    background:rgba(255,255,255,.03);border:1px solid var(--line);margin-bottom:8px;font-size:13.5px;}
+  .flowstep .fs-dir{color:var(--blue);font-weight:700;font-size:11px;font-family:'Spline Sans Mono',monospace;}
+
+  /* applicable teams / workstreams */
+  .team-list{display:flex;flex-direction:column;gap:8px;}
+  .team-item{border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    background:rgba(255,255,255,.03);}
+  /* once open, let tooltips escape the item box (animation already finished) */
+  .team-item.open{overflow:visible;}
+  .team-row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;
+    background:transparent;border:none;cursor:pointer;text-align:left;
+    font-family:inherit;font-size:13.5px;color:var(--ink);transition:background .15s;}
+  .team-row:hover{background:rgba(255,255,255,.05);}
+  .team-name{flex:1;}
+  .team-ico{width:30px;height:30px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;
+    background:rgba(255,255,255,.06);font-size:14px;}
+  .team-chev{flex:0 0 auto;color:var(--ink-dim);font-size:12px;transition:transform .25s;}
+  .team-item.open .team-chev{transform:rotate(180deg);}
+  .team-detail{max-height:0;overflow:hidden;transition:max-height .3s ease;}
+  /* allow tooltips out once expanded; delay so it doesn't break the open animation */
+  .team-item.open .team-detail{max-height:260px;overflow:visible;transition:max-height .3s ease, overflow 0s .3s;}
+  .team-detail p{margin:0;padding:0 14px 13px 56px;font-size:13px;line-height:1.55;
+    color:var(--ink-soft);}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;left:22px;top:22px;z-index:120;}
+  .brand{font-family:'Fraunces',serif;font-size:25px;font-weight:700;letter-spacing:-.5px;
+    display:flex;align-items:center;gap:11px;white-space:nowrap;}
+  .brand .bdot{width:13px;height:13px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 14px var(--green);animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{50%{opacity:.4;transform:scale(.8);}}
+  .brand-sub{color:var(--ink-soft);font-size:12.5px;margin-top:4px;font-family:'Spline Sans Mono',monospace;}
+
+  #controls{position:fixed;left:22px;bottom:22px;z-index:120;display:flex;gap:8px;align-items:center;}
+  .ctrl{width:42px;height:42px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(20,29,40,.85);backdrop-filter:blur(10px);color:var(--ink-soft);
+    cursor:pointer;font-size:16px;transition:.18s;display:grid;place-items:center;}
+  .ctrl:hover{background:rgba(40,55,75,.9);color:var(--ink);border-color:var(--green-deep);transform:translateY(-2px);}
+  #zoomlvl{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--ink-dim);
+    padding:0 12px;min-width:62px;text-align:center;}
+
+  .hint{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:115;
+    background:rgba(20,29,40,.8);backdrop-filter:blur(10px);border:1px solid var(--line);
+    border-radius:30px;padding:9px 20px;font-size:12.5px;color:var(--ink-soft);
+    font-family:'Spline Sans Mono',monospace;display:flex;gap:18px;align-items:center;
+    transition:opacity .5s;}
+  .hint kbd{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:5px;
+    padding:1px 7px;font-size:11px;color:var(--ink);}
+  .hint.hide{opacity:0;pointer-events:none;}
+
+  .legend{position:fixed;right:22px;top:22px;z-index:120;background:rgba(16,23,31,.82);
+    backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:14px 16px;
+    font-size:12px;transition:opacity .35s;}
+  .legend.hide{opacity:0;pointer-events:none;}
+  .legend .lg-row{display:flex;align-items:center;gap:9px;margin:6px 0;color:var(--ink-soft);}
+  .lg-sw{width:22px;height:16px;border-radius:5px;flex:0 0 auto;
+    border:1.5px solid var(--lg-c,#3f9e57);
+    background:color-mix(in srgb, var(--lg-c,#3f9e57) 18%, transparent);}
+  .lg-line{width:24px;height:0;flex:0 0 auto;
+    border-top:2.5px dotted var(--lg-c,#4f7bd1);}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="world">
+    <div class="grid-bg"></div>
+    <svg id="edges"></svg>
+    <!-- nodes injected by JS -->
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="brand">DevOps Tooling &amp; Process Interaction</div>
+</div>
+
+<div class="legend" id="legend">
+  <div class="lg-row"><span class="lg-sw" style="--lg-c:#3f9e57"></span>Tooling stage</div>
+  <div class="lg-row"><span class="lg-sw" style="--lg-c:#4f7bd1"></span>Orchestrator</div>
+  <div class="lg-row"><span class="lg-sw" style="--lg-c:#7c5cd6"></span>Artifact / data</div>
+  <div class="lg-row"><span class="lg-sw" style="--lg-c:#c79a40"></span>Skill / concept</div>
+  <div class="lg-row"><span class="lg-line" style="--lg-c:#4f7bd1"></span>orchestrate flow</div>
+</div>
+
+<div id="controls">
+  <button class="ctrl" id="zoomOut" title="Zoom out"><i class="fa-solid fa-minus"></i></button>
+  <span id="zoomlvl">100%</span>
+  <button class="ctrl" id="zoomIn" title="Zoom in"><i class="fa-solid fa-plus"></i></button>
+  <button class="ctrl" id="reset" title="Reset view"><i class="fa-solid fa-compress"></i></button>
+  <button class="ctrl" id="fit" title="Fit to screen"><i class="fa-solid fa-expand"></i></button>
+</div>
+
+<div class="hint" id="hint">
+  <span><i class="fa-solid fa-arrows-up-down-left-right"></i> drag to pan</span>
+  <span><i class="fa-solid fa-magnifying-glass-plus"></i> scroll to zoom</span>
+  <span><i class="fa-solid fa-hand-pointer"></i> click block for details</span>
+</div>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sb-head" id="sbHead">
+    <button class="sb-close" id="sbClose"><i class="fa-solid fa-xmark"></i></button>
+    <div class="sb-cat" id="sbCat"></div>
+    <div class="sb-title"><span class="ti" id="sbIco"></span><span id="sbTitle"></span></div>
+  </div>
+  <div class="sb-body" id="sbBody"></div>
+</aside>
+
+<div id="edgeTip"></div>
+
+<script>
+/* =========================================================
+   DATA MODEL  — positions are in "world" coordinates
+   ========================================================= */
+const NODES = {
+  git:        {x:60,  y:556, w:170, h:74,  type:"green", icon:"fa-brands fa-git-alt", title:"Git", sub:"Version Control",
+    fan:["fa-infinity","fa-server","fa-bug","fa-code"]},
+  maven:      {x:305, y:290, w:230, h:84,  type:"green", icon:"fa-brands fa-java", title:"Maven", sub:"Build / Packaging",
+    fan:["fa-code","fa-infinity"]},
+  selenium:   {x:610, y:125, w:230, h:74,  type:"green", icon:"fa-solid fa-vial", title:"Selenium", sub:"Functional Tests",
+    fan:["fa-bug","fa-infinity"]},
+  sonarqube:  {x:600, y:556, w:230, h:74,  type:"green", icon:"fa-solid fa-magnifying-glass-chart", title:"SonarQube", sub:"Static Code Analysis",
+    fan:["fa-code","fa-infinity"]},
+  nexus:      {x:880, y:60,  w:230, h:84,  type:"green", icon:"fa-solid fa-box-archive", title:"Nexus", sub:"Artifact Management / Registry",
+    fan:["fa-code","fa-infinity"]},
+  jenkins:    {x:870, y:400, w:250, h:96,  type:"blue",  icon:"fa-solid fa-gears", title:"Jenkins / GitLab CI / GitHub Actions", sub:"Orchestrator, Pipeline",
+    fan:["fa-infinity","fa-server"]},
+  docker:     {x:1250,y:406, w:230, h:84,  type:"green", icon:"fa-brands fa-docker", title:"Docker", sub:"Containerization",
+    fan:["fa-code","fa-infinity"]},
+  tomcat:     {x:1250,y:556, w:230, h:74,  type:"green", icon:"fa-solid fa-server", title:"Tomcat", sub:"Web Servlet",
+    fan:["fa-code","fa-infinity"]},
+  ansible:    {x:1250,y:700, w:230, h:74,  type:"green", icon:"fa-solid fa-screwdriver-wrench", title:"Ansible", sub:"Config Management",
+    fan:["fa-infinity","fa-server"]},
+  terraform:  {x:1250,y:810, w:230, h:74,  type:"green", icon:"fa-solid fa-cubes-stacked", title:"Terraform", sub:"Infrastructure as Code",
+    fan:["fa-infinity","fa-server"]},
+  kubernetes: {x:1900,y:406, w:230, h:84,  type:"green", icon:"fa-solid fa-dharmachakra", title:"Kubernetes", sub:"Container Runtime Orchestration",
+    fan:["fa-infinity","fa-server"]},
+  prereq:     {x:1700,y:690, w:380, h:96,  type:"green", icon:"fa-solid fa-screwdriver-wrench", title:"Target Server Prep", sub:"Docker, Kubernetes & prerequisite configs",
+    fan:["fa-infinity","fa-server"]},
+  /* concept row — fixed uniform height so wrapping titles don't change block size */
+  jira:       {x:60,  y:957, w:160, h:76, fixed:true, type:"green", icon:"fa-solid fa-list-check", title:"Jira", sub:"Issue tracking",
+    fan:["fa-code","fa-bug","fa-server","fa-infinity"]},
+  confluence: {x:250, y:957, w:160, h:76, fixed:true, type:"green", icon:"fa-solid fa-book-open", title:"Confluence", sub:"Documentation",
+    fan:["fa-code","fa-bug","fa-server","fa-infinity"]},
+  overview:   {x:440, y:957, w:190, h:76, fixed:true, type:"amber", icon:"fa-solid fa-compass", title:"DevOps Overview", sub:"Foundations",
+    fan:[]},
+  unix:       {x:660, y:957, w:180, h:76, fixed:true, type:"green", icon:"fa-solid fa-terminal", title:"Unix Scripting", sub:"Shell automation",
+    fan:["fa-infinity","fa-server"]},
+  aws:        {x:870, y:957, w:420, h:76, fixed:true, type:"green", icon:"fa-brands fa-aws", title:"AWS", sub:"Cloud, VMs, Linux, Networking",
+    fan:["fa-infinity","fa-server"]},
+  trouble:    {x:1320,y:957, w:190, h:76, fixed:true, type:"amber", icon:"fa-solid fa-stethoscope", title:"DevOps Troubleshooting", sub:"Diagnosis",
+    fan:["fa-infinity"]},
+  security:   {x:1540,y:957, w:190, h:76, fixed:true, type:"amber", icon:"fa-solid fa-shield-halved", title:"DevOps Security", sub:"DevSecOps",
+    fan:["fa-infinity","fa-server"]},
+  sre:        {x:1760,y:957, w:210, h:76, fixed:true, type:"amber", icon:"fa-solid fa-heart-pulse", title:"Site Reliability Engineering", sub:"Reliability",
+    fan:["fa-infinity","fa-server"]},
+};
+
+/* Distinct artifact chips (rounded, violet) — the data flowing through the pipeline */
+const CHIPS = [
+  {id:"package",   x:358, y:120, w:124, h:84, icon:"fa-solid fa-cube",        label:"Package /\nExecutable", fan:["fa-code","fa-infinity"]},
+  {id:"source",    x:358, y:553, w:124, h:80, icon:"fa-solid fa-file-code",   label:"Source Code", fan:["fa-code"]},
+  {id:"report",    x:900, y:553, w:124, h:80, icon:"fa-solid fa-file-lines",  label:"Analysis\nReport", fan:["fa-code","fa-bug"]},
+  {id:"testreport",x:663, y:-25, w:124, h:80, icon:"fa-solid fa-clipboard-check", label:"Test\nReport", fan:["fa-bug","fa-code","fa-infinity"]},
+  {id:"image",     x:1560,y:404, w:124, h:88, icon:"fa-solid fa-layer-group", label:"Image", fan:["fa-infinity","fa-server"]},
+  {id:"container", x:1740,y:560, w:124, h:84, icon:"fa-solid fa-box",         label:"Container", fan:["fa-infinity","fa-server"]},
+];
+
+/* Plain annotation glyphs (none currently) */
+const ANNOS = [];
+
+/* Visual grouping boxes */
+const GROUPS = [
+  {x:0, y:-50, w:2250, h:958, tagged:true, tag:"DEVOPS TOOLING & PROCESS INTERACTION", icon:"fa-solid fa-diagram-project",
+   note:"automated build → test → deploy flow",
+   accent:"#5e9e6e", fill:"rgba(63,158,87,.04)", tagbg:"#15241a"},
+  {x:1650, y:350, w:540, h:490, label:"Target Server"},
+  {x:0, y:930, w:2250, h:130, tagged:true, tag:"FOUNDATIONS · PLATFORMS, SKILLS & PRACTICES", icon:"fa-solid fa-layer-group",
+   accent:"#c79a40", fill:"rgba(199,154,64,.04)", tagbg:"#241c10"},
+];
+
+/* Edges: from-node, to-node, label, orchestrate? + side anchors */
+const EDGES = [
+  {f:"git",       t:"source",     label:"checkout code",        a:"r", b:"l"},
+  {f:"source",    t:"maven",      label:"compile / package",    a:"t", b:"b"},
+  {f:"maven",     t:"package",    label:"package",              a:"t", b:"b"},
+  {f:"package",   t:"nexus",      label:"upload / archive",     a:"t", b:"l"},
+  {f:"package",   t:"selenium",   label:"Run tests",            a:"r", b:"l"},
+  {f:"selenium",  t:"testreport", label:"produces report",      a:"t", b:"b"},
+  {f:"source",    t:"sonarqube",  label:"scan code",            a:"r", b:"l"},
+  {f:"sonarqube", t:"report",     label:"",                     a:"r", b:"l"},
+  {f:"nexus",     t:"docker",     label:"pull artifacts",       a:"b", b:"t"},
+  {f:"docker",    t:"tomcat",     label:"use as base image",    a:"b", b:"t"},
+  {f:"docker",    t:"image",      label:"",                     a:"r", b:"l"},
+  {f:"tomcat",    t:"image",      label:"",                     a:"r", b:"l"},
+  {f:"image",     t:"container",  label:"launch",               a:"b", b:"t"},
+  {f:"image",     t:"kubernetes", label:"deploy to kubernetes", a:"r", b:"l"},
+  {f:"ansible",   t:"prereq",     label:"apply configuration",  a:"r", b:"l"},
+  {f:"terraform", t:"prereq",     label:"provision infrastructure", a:"r", b:"l"},
+  /* orchestrate (dashed blue) */
+  {f:"jenkins", t:"maven",      label:"orchestrate", orch:true, a:"l", b:"r"},
+  {f:"jenkins", t:"sonarqube",  label:"orchestrate", orch:true, a:"l", b:"t"},
+  {f:"jenkins", t:"selenium",   label:"orchestrate", orch:true, a:"t", b:"b"},
+  {f:"jenkins", t:"nexus",      label:"orchestrate", orch:true, a:"t", b:"b"},
+  {f:"jenkins", t:"docker",     label:"orchestrate", orch:true, a:"r", b:"l"},
+  {f:"jenkins", t:"ansible",    label:"orchestrate", orch:true, a:"b", b:"l"},
+  {f:"jenkins", t:"terraform",  label:"orchestrate", orch:true, a:"b", b:"l"},
+  {f:"jenkins", t:"git",        label:"",            orch:true, a:"b", b:"b", corridorY:740},
+];
+
+/* Rich content for the sidebar */
+const INFO = {
+  git:{cat:"Source Stage",roles:["Version Control","Collaboration"],
+    desc:"Git is the distributed version-control system that holds every line of the application's source. Developers branch, commit, and merge here; the CI pipeline checks code out from Git to begin each build.",
+    flow:[["←","Developers push commits & open pull requests"],["→","CI server checks out code to start a build"]],
+    points:["Tracks full history of every change","Feature branches isolate work in progress","A push (or merge) is the trigger that fires the pipeline","Hosted on GitHub, GitLab, or Bitbucket"]},
+  maven:{cat:"Build Stage",roles:["Build","Dependency Mgmt"],
+    desc:"Maven compiles the checked-out source, resolves dependencies, runs unit tests, and packages everything into a deployable artifact (a JAR or WAR).",
+    flow:[["←","Receives source code to compile"],["→","Produces a packaged executable"]],
+    points:["Declarative build via pom.xml","Pulls libraries from central & internal repos","Standard build lifecycle: validate → compile → test → package","Output is uploaded to Nexus for storage"]},
+  selenium:{cat:"Test Stage",roles:["Functional Testing","Automation"],
+    desc:"Selenium drives a real browser to run automated functional and end-to-end tests against the packaged build, verifying the application behaves correctly from a user's perspective.",
+    flow:[["←","Test run triggered after packaging"],["←","Orchestrated by the CI server"]],
+    points:["Simulates real user interactions in-browser","Catches regressions before deployment","Cross-browser test coverage","Failures can block the pipeline from proceeding"]},
+  sonarqube:{cat:"Quality Stage",roles:["Static Analysis","Code Quality"],
+    desc:"SonarQube scans the source code for bugs, vulnerabilities, code smells, and coverage gaps — then publishes an Analysis Report. It enforces quality gates the pipeline must pass.",
+    flow:[["←","Pulls source code to scan"],["→","Emits an Analysis Report"]],
+    points:["Detects bugs & security hotspots early","Quality gates can fail the build","Tracks technical debt over time","Integrates directly into the CI flow"]},
+  nexus:{cat:"Artifact Stage",roles:["Artifact Registry","Storage"],
+    desc:"Nexus is the artifact repository. Build outputs are uploaded and versioned here; downstream stages (like Docker) pull these trusted artifacts instead of rebuilding.",
+    flow:[["←","Receives packaged build to archive"],["→","Serves artifacts to Docker on demand"]],
+    points:["Single source of truth for binaries","Versioned, immutable artifact storage","Proxies & caches external dependencies","Decouples build from deployment"]},
+  jenkins:{cat:"Pipeline Orchestration",roles:["CI/CD Pipeline Orchestrator","Build Process Engine"],
+    desc:"The beating heart of the build pipeline. Jenkins, GitLab CI, or GitHub Actions performs pipeline orchestration — sequencing the one-time set of steps that runs for each change: checkout, build, test, scan, package, containerize, and deploy. Note this is process orchestration (wiring tools into an automated flow per commit), not runtime orchestration of live containers — that's Kubernetes' job once the app is deployed.",
+    flow:[["⇄","Coordinates every tool in the build pipeline"],["→","Triggers build, test, scan, deploy stages per change"]],
+    points:["Defines the pipeline as code (Jenkinsfile / YAML)","Orchestrates the build/deploy process — runs once per commit, then finishes","Runs stages in sequence or parallel","Reacts to Git events automatically","Hands off to Kubernetes, which orchestrates the containers at runtime"]},
+  docker:{cat:"Containerization",roles:["Containerization","Image Build"],
+    desc:"Docker packages the application and its runtime into a portable container image. It pulls artifacts from Nexus, uses Tomcat as a base, and produces an image that runs identically anywhere.",
+    flow:[["←","Pulls artifacts from Nexus"],["→","Builds & ships a container image"],["→","Deploys to Kubernetes"]],
+    points:["'Build once, run anywhere' portability","Layers a base image (Tomcat) with the app","Produces an immutable, shippable Image","Foundation for Kubernetes deployment"]},
+  tomcat:{cat:"Runtime",roles:["Web Servlet","Java Runtime"],
+    desc:"Tomcat is the Java servlet container that runs the web application. Here it serves as the base image layer Docker builds on top of.",
+    flow:[["→","Used as the base image for Docker"]],
+    points:["Executes Java WAR applications","Lightweight servlet & JSP container","Bundled into the Docker image","Provides the app's HTTP runtime"]},
+  ansible:{cat:"Configuration",roles:["Config Management","Provisioning"],
+    desc:"Ansible applies configuration to the target servers — installing Docker, Kubernetes, and any prerequisites — using simple, agentless, idempotent playbooks. It configures infrastructure that already exists (often provisioned by Terraform first).",
+    flow:[["←","Orchestrated by the CI server"],["→","Applies configuration to target servers"]],
+    points:["Agentless — works over SSH","Idempotent YAML playbooks","Configures & prepares existing hosts","Pairs with Terraform: Terraform builds the servers, Ansible configures them"]},
+  terraform:{cat:"Provisioning",roles:["Infrastructure as Code","Provisioning"],
+    desc:"Terraform provisions the infrastructure itself — the servers, networks, load balancers, and cloud resources the application will run on — declaratively as code. Where Ansible configures machines that already exist, Terraform creates and tears down the underlying infrastructure, keeping it in sync with a desired-state definition.",
+    note:"<strong>Note:</strong> Terraform is shown here for context, but it typically lives in a <strong>separate pipeline</strong> from application CI/CD. Infrastructure changes have a different cadence and blast radius than app deploys, so they're usually managed independently. In mature implementations, <strong>Terraform Cloud</strong> (or Terraform Enterprise / a comparable platform like Spacelift or Atlantis) orchestrates the runs — handling remote state, plan/apply approvals, policy-as-code guardrails, and drift detection — rather than running inside the application pipeline.",
+    flow:[["←","Orchestrated by the CI server"],["→","Provisions the target server infrastructure"]],
+    points:["Declarative Infrastructure as Code (HCL)","Provisions cloud/server resources, not their configuration","Tracks desired state and plans changes before applying","Complements Ansible: provision first (Terraform), then configure (Ansible)","Reproducible, version-controlled infrastructure"]},
+  kubernetes:{cat:"Runtime Orchestration",roles:["Container Runtime Orchestration","Scaling & Self-healing"],
+    desc:"Kubernetes performs runtime orchestration: it manages the containers while they run in production. This is different from Jenkins. Jenkins orchestrates the build pipeline — the one-time sequence of steps (build → test → deploy) that runs per commit. Kubernetes takes over after deployment and continuously keeps the running containers healthy: scheduling them onto machines, restarting failures, scaling replicas up and down with demand, and load-balancing traffic across them.",
+    flow:[["←","Receives the deployed image from Docker"],["↻","Continuously schedules, heals & scales running containers"]],
+    points:["Pipeline orchestration (Jenkins) sequences build/deploy steps once per change; runtime orchestration (Kubernetes) manages live containers continuously","Self-healing — automatically restarts or reschedules failed pods","Horizontal auto-scaling in response to live load","Rolling updates with zero downtime","Service discovery & load balancing across replicas"]},
+  prereq:{cat:"Target Server",roles:["Host Prep","Bootstrapping"],
+    desc:"The target servers must be primed before workloads land: Docker and Kubernetes installed plus other prerequisite configurations — all applied automatically by Ansible.",
+    flow:[["←","Configured by Ansible"]],
+    points:["Docker runtime installed","Kubernetes node components set up","Networking & security prerequisites","Repeatable, automated provisioning"]},
+  jira:{cat:"Tool / Platform",roles:["Issue Tracking","Agile"],
+    desc:"Jira manages the work itself — tracking issues, sprints, and stories that drive what flows through the pipeline.",
+    points:["Backlog, sprint & board management","Links commits to tickets","Agile / Scrum / Kanban workflows"]},
+  confluence:{cat:"Tool / Platform",roles:["Documentation","Knowledge Base"],
+    desc:"Confluence is the team wiki — runbooks, architecture docs, and onboarding live here alongside Jira.",
+    points:["Centralized team knowledge base","Runbooks & architecture docs","Tight Jira integration"]},
+  overview:{cat:"Concept",roles:["Foundations"],
+    desc:"A grounding in DevOps culture and practice: the why behind continuous integration, delivery, and the collaboration between Dev and Ops.",
+    points:["CALMS: Culture, Automation, Lean, Measurement, Sharing","Breaks down Dev ↔ Ops silos","Continuous everything mindset"]},
+  unix:{cat:"Skill",roles:["Shell","Automation"],
+    desc:"Unix/Linux shell scripting is the glue of automation — wiring tools, parsing logs, and bootstrapping environments.",
+    points:["Bash & shell fundamentals","Process, file & permission control","Cron & automated tasks"]},
+  aws:{cat:"Cloud Platform",roles:["Cloud Services","Infrastructure"],
+    desc:"AWS is the cloud platform — a broad suite of on-demand services (compute, storage, networking, identity, and more) that the whole pipeline runs on. Working with it spans both using the services and the skills to provision and operate them.",
+    points:["Services: EC2, VPC, IAM, S3 and many more","Provisions the compute, network & storage the pipeline deploys to","Underlying Linux system administration","Networking: subnets, routing, security groups","Cloud cost & resource awareness"]},
+  trouble:{cat:"Skill / Practice",roles:["Diagnosis","Ops"],
+    desc:"Systematic troubleshooting — reading logs, tracing failures across the pipeline, and restoring service fast.",
+    points:["Log analysis & root-cause tracing","Pipeline failure debugging","Incident response basics"]},
+  security:{cat:"Concept",roles:["DevSecOps","Hardening"],
+    desc:"Security woven into the pipeline (DevSecOps) — scanning, secrets management, and hardening at every stage.",
+    points:["Shift-left security scanning","Secrets & credential management","Image & dependency vulnerability checks"]},
+  sre:{cat:"Concept",roles:["Reliability","Observability"],
+    desc:"Site Reliability Engineering applies software practice to operations — SLOs, error budgets, and observability keep systems dependable.",
+    points:["SLIs, SLOs & error budgets","Monitoring, metrics & alerting","Toil reduction through automation"]},
+  /* ---- artifact chips (the data flowing between tools) ---- */
+  source:{cat:"Artifact · Input",roles:["Raw source code"],
+    desc:"The raw source code checked out from version control — the human-written instructions that the pipeline compiles, scans, and packages. Everything downstream starts from this artifact.",
+    flow:[["←","Checked out from Git"],["→","Compiled by Maven; scanned by SonarQube"]],
+    points:["The human-readable code, before any build","Fed into static analysis and the build step","Each pipeline run starts from a specific commit of it"]},
+  package:{cat:"Artifact · Build output",roles:["Deployable build"],
+    desc:"The packaged, runnable output of the build — typically a JAR or WAR produced by Maven. This is the immutable binary that gets tested, archived, and ultimately containerized for deployment.",
+    flow:[["←","Produced by Maven from the source code"],["→","Tested by Selenium, archived to Nexus"]],
+    points:["A compiled, deployable binary (JAR / WAR)","Immutable — the same artifact moves through every stage","Stored in Nexus so deploys reuse the exact build"]},
+  testreport:{cat:"Artifact · Test output",roles:["Test results"],
+    desc:"The results of the automated functional tests run by Selenium — which scenarios passed or failed. The pipeline uses this to decide whether the build is safe to promote further.",
+    flow:[["←","Produced by Selenium's functional tests"],["→","Reviewed by QA; can gate the pipeline"]],
+    points:["Pass/fail outcomes of end-to-end tests","Surfaces regressions before deployment","A failing report can stop the pipeline"]},
+  report:{cat:"Artifact · Analysis output",roles:["Code quality report"],
+    desc:"The static-analysis findings produced by SonarQube — bugs, code smells, security hotspots, and coverage. It quantifies code quality and technical debt for developers to act on.",
+    flow:[["←","Produced by SonarQube's scan"],["→","Reviewed by developers; feeds quality gates"]],
+    points:["Lists bugs, code smells & security issues","Tracks coverage and technical debt over time","Backs the quality gate that can fail the build"]},
+  image:{cat:"Artifact · Container image",roles:["Deployable image"],
+    desc:"The container image built by Docker — an immutable, self-contained snapshot bundling the app (on its Tomcat runtime) with everything it needs to run. Identical copies launch as containers anywhere.",
+    flow:[["←","Built by Docker from the artifact + Tomcat base"],["→","Launched as containers; deployed to Kubernetes"]],
+    points:["Immutable, portable snapshot of the app","'Build once, run anywhere' across environments","The unit Kubernetes schedules and scales"]},
+  container:{cat:"Artifact · Running instance",roles:["Live workload"],
+    desc:"A running instance of the container image — the live, isolated process serving the application. Kubernetes runs many identical containers across the cluster and replaces them if they fail.",
+    flow:[["←","Launched from the image"],["↻","Run, scaled & healed by Kubernetes at runtime"]],
+    points:["A live, isolated instance of the image","Many run in parallel for scaling and resilience","Disposable — replaced rather than patched in place"]},
+};
+
+/* =========================================================
+   RENDER NODES, ANNOTATIONS, GROUPS
+   ========================================================= */
+const world = document.getElementById('world');
+const edgesSvg = document.getElementById('edges');
+
+GROUPS.forEach(g=>{
+  const d=document.createElement('div');
+  if(g.tagged){
+    d.className='group tagged';
+    d.style.cssText=`left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px;`
+      +`--g-accent:${g.accent};--g-fill:${g.fill};--g-tagbg:${g.tagbg};`;
+    d.innerHTML=`<div class="g-tag"><i class="${g.icon}"></i>${g.tag}</div>`
+      +(g.note?`<div class="g-note">${g.note}</div>`:'');
+  }else{
+    d.className='group';
+    d.style.cssText=`left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px;`;
+    d.innerHTML=`<div class="g-label">${g.label}</div>`;
+  }
+  world.appendChild(d);
+});
+
+CHIPS.forEach(c=>{
+  const d=document.createElement('div');
+  d.className='chip';
+  d.id='chip-'+c.id;
+  d.style.cssText=`left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px;`;
+  d.innerHTML=`<i class="${c.icon}"></i><span class="chip-l">${c.label.replace(/\n/g,'<br>')}</span>`;
+  if(INFO[c.id]){
+    d.classList.add('clickable');
+    d.addEventListener('click',e=>{e.stopPropagation();openSidebar(c.id);});
+    if(c.fan && c.fan.length){
+      d.addEventListener('mouseenter',()=>showFan(c.id,d,c));
+      d.addEventListener('mouseleave',hideFan);
+    }
+  }
+  world.appendChild(d);
+});
+
+ANNOS.forEach(a=>{
+  const d=document.createElement('div');
+  d.className='anno';
+  d.style.cssText=`left:${a.x}px;top:${a.y}px;width:120px;transform:translateX(-50%);`;
+  d.innerHTML=`<i class="${a.icon}"></i><span>${a.label}</span>`;
+  world.appendChild(d);
+});
+
+Object.entries(NODES).forEach(([id,n])=>{
+  const d=document.createElement('div');
+  d.className=`node ${n.type==='blue'?'blue':n.type==='amber'?'amber':''}${n.fixed?' fixed':''}`;
+  d.id='node-'+id;
+  const hRule = n.fixed ? `height:${n.h}px;` : `min-height:${n.h}px;`;
+  d.style.cssText=`left:${n.x}px;top:${n.y}px;width:${n.w}px;${hRule}`;
+  d.innerHTML=`<div class="n-title"><span class="n-ico"><i class="${n.icon}"></i></span><span>${n.title}</span></div>
+               <div class="n-sub">${n.sub}</div>`;
+  d.addEventListener('click',e=>{e.stopPropagation();openSidebar(id);});
+  d.addEventListener('mouseenter',()=>showFan(id,d,n));
+  d.addEventListener('mouseleave',hideFan);
+  world.appendChild(d);
+});
+
+/* =========================================================
+   EDGES  — SVG visual lines + HTML div hotspots
+   ========================================================= */
+function rectOf(id){
+  const n=NODES[id];
+  if(n) return {x:n.x,y:n.y,w:n.w,h:n.h};
+  const c=CHIPS.find(c=>c.id===id);
+  if(c) return {x:c.x,y:c.y,w:c.w,h:c.h};
+  return {x:0,y:0,w:80,h:60};
+}
+function anchor(r,side){
+  switch(side){
+    case "l":return {x:r.x,          y:r.y+r.h/2};
+    case "r":return {x:r.x+r.w,      y:r.y+r.h/2};
+    case "t":return {x:r.x+r.w/2,    y:r.y};
+    case "b":return {x:r.x+r.w/2,    y:r.y+r.h};
+    default: return {x:r.x+r.w/2,    y:r.y+r.h/2};
+  }
+}
+
+/* =========================================================
+   ORTHOGONAL ROUTER — straight segments + rounded corners
+   ========================================================= */
+const STUB = 26;   // how far the line exits perpendicular from a block
+const CORNER = 18; // corner radius
+
+function stubPoint(p, side, len){
+  switch(side){
+    case "l": return {x:p.x-len, y:p.y};
+    case "r": return {x:p.x+len, y:p.y};
+    case "t": return {x:p.x, y:p.y-len};
+    case "b": return {x:p.x, y:p.y+len};
+    default:  return {x:p.x, y:p.y};
+  }
+}
+const isHoriz = s => s==="l"||s==="r";
+
+/* Build an orthogonal list of waypoints from p1(side a) to p2(side b).
+   opts.corridorY / opts.corridorX force the cross-corridor to a fixed line
+   (used to route an edge around other blocks). */
+function routeOrtho(p1,a,p2,b,opts){
+  opts=opts||{};
+  const s1=stubPoint(p1,a,STUB);
+  const s2=stubPoint(p2,b,STUB);
+
+  const aH=isHoriz(a), bH=isHoriz(b);
+  let pts;
+
+  if(aH && bH){
+    // both horizontal exits: route via a vertical corridor between the two blocks
+    const midX = (opts.corridorX!=null) ? opts.corridorX : (s1.x+s2.x)/2;
+    if(opts.corridorX==null && Math.abs(p1.y-p2.y)<=2){
+      pts=[p1,p2]; // aligned — straight across
+    }else{
+      // skip stubs: corner directly off each anchor for longer, roundable legs
+      pts=[p1, {x:midX,y:p1.y}, {x:midX,y:p2.y}, p2];
+    }
+  }else if(!aH && !bH){
+    // both vertical exits: route via a horizontal corridor between the two blocks
+    const midY = (opts.corridorY!=null) ? opts.corridorY : (s1.y+s2.y)/2;
+    if(opts.corridorY==null && Math.abs(p1.x-p2.x)<=2){
+      pts=[p1,p2]; // aligned — straight
+    }else{
+      pts=[p1, {x:p1.x,y:midY}, {x:p2.x,y:midY}, p2];
+    }
+  }else{
+    // perpendicular exits: single clean L-bend.
+    // corner sits at the intersection of p1's exit axis and p2's exit axis
+    const corner = aH ? {x:p2.x, y:p1.y} : {x:p1.x, y:p2.y};
+    pts=[p1, corner, p2];
+  }
+
+  // de-duplicate consecutive identical points
+  const out=[];
+  for(const pt of pts){
+    const last=out[out.length-1];
+    if(!last || Math.abs(last.x-pt.x)>0.5 || Math.abs(last.y-pt.y)>0.5) out.push(pt);
+  }
+  return out;
+}
+
+/* Convert a waypoint list into an SVG path string with rounded corners */
+function roundedPath(pts, r){
+  if(pts.length<2) return "";
+  if(pts.length===2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
+  let d=`M${pts[0].x},${pts[0].y}`;
+  for(let i=1;i<pts.length-1;i++){
+    const p0=pts[i-1], p1=pts[i], p2=pts[i+1];
+    // vectors into and out of the corner
+    const v1={x:p1.x-p0.x, y:p1.y-p0.y};
+    const v2={x:p2.x-p1.x, y:p2.y-p1.y};
+    const len1=Math.hypot(v1.x,v1.y)||1;
+    const len2=Math.hypot(v2.x,v2.y)||1;
+    const rr=Math.min(r, len1/2, len2/2);
+    const a={x:p1.x - v1.x/len1*rr, y:p1.y - v1.y/len1*rr};
+    const c={x:p1.x + v2.x/len2*rr, y:p1.y + v2.y/len2*rr};
+    d+=` L${a.x},${a.y} Q${p1.x},${p1.y} ${c.x},${c.y}`;
+  }
+  const last=pts[pts.length-1];
+  d+=` L${last.x},${last.y}`;
+  return d;
+}
+
+/* midpoint of the longest segment (for hotspot/tooltip placement) */
+function pathMidpoint(pts){
+  let best=null, bestLen=-1;
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i], b=pts[i+1];
+    const len=Math.hypot(b.x-a.x,b.y-a.y);
+    if(len>bestLen){bestLen=len; best={x:(a.x+b.x)/2,y:(a.y+b.y)/2};}
+  }
+  return best||pts[0];
+}
+
+const edgeTip=document.getElementById('edgeTip');
+let activeVis=null;
+
+function showTip(zone,clientX,clientY){
+  const orch=zone.dataset.orch==='1';
+  edgeTip.className='show'+(orch?' orch':'');
+  edgeTip.innerHTML=`<span class="ta">${orch?'⇢':'→'}</span>${zone.dataset.label}`;
+  edgeTip.style.left=clientX+'px';
+  edgeTip.style.top=(clientY-12)+'px';
+  activeVis=document.getElementById(zone.dataset.vis);
+  if(activeVis) activeVis.classList.add('hot');
+}
+function hideTip(){
+  edgeTip.className='';
+  if(activeVis){activeVis.classList.remove('hot');activeVis=null;}
+}
+
+function buildEdges(){
+  // Remove old edge-zone divs if rebuilding
+  world.querySelectorAll('.edge-zone').forEach(d=>d.remove());
+
+  let html=`<defs>
+    <marker id="arr" markerWidth="18" markerHeight="18" refX="13" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L15,8 L0,16 Z" fill="#37485c"/></marker>
+    <marker id="arrO" markerWidth="20" markerHeight="20" refX="14" refY="9" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L17,9 L0,18 Z" fill="#4f7bd1"/></marker>
+  </defs>`;
+
+  EDGES.forEach(e=>{
+    const ra=rectOf(e.f), rb=rectOf(e.t);
+    const p1=anchor(ra,e.a);
+    // Pull the arrow tip slightly outside the target block so the (larger)
+    // arrowhead renders in the gap instead of being painted over by the block.
+    const GAP = e.orch ? 13 : 11;
+    const p2=stubPoint(anchor(rb,e.b), e.b, GAP);
+
+    const pts=routeOrtho(p1,e.a,p2,e.b,{corridorY:e.corridorY, corridorX:e.corridorX});
+    const dpath=roundedPath(pts, CORNER);
+
+    const eid=`${e.f}__${e.t}`;
+    html+=`<path id="vis-${eid}" class="${e.orch?'edge orch':'edge'}" d="${dpath}"
+            marker-end="url(#${e.orch?'arrO':'arr'})"
+            data-from="${e.f}" data-to="${e.t}"></path>`;
+
+    if(e.label){
+      const mid=pathMidpoint(pts);
+      const zone=document.createElement('div');
+      zone.className='edge-zone'+(e.orch?' orch':'');
+      zone.style.left=mid.x+'px';
+      zone.style.top=mid.y+'px';
+      zone.dataset.label=e.label;
+      zone.dataset.orch=e.orch?'1':'0';
+      zone.dataset.vis='vis-'+eid;
+      zone.addEventListener('mouseenter',ev=>showTip(zone,ev.clientX,ev.clientY));
+      zone.addEventListener('mousemove', ev=>{
+        edgeTip.style.left=ev.clientX+'px';
+        edgeTip.style.top=(ev.clientY-12)+'px';
+      });
+      zone.addEventListener('mouseleave',hideTip);
+      world.appendChild(zone);
+    }
+  });
+
+  edgesSvg.innerHTML=html;
+  edgesSvg.setAttribute('width','3000');
+  edgesSvg.setAttribute('height','1400');
+}
+buildEdges();
+
+/* =========================================================
+   FAN-OUT BUBBLES
+   ========================================================= */
+let fanEl=null;
+function showFan(id,nodeEl,n){
+  if(!n.fan||!n.fan.length) return;
+  hideFan();
+  fanEl=document.createElement('div');
+  const isChip = !!CHIPS.find(c=>c.id===id);
+  fanEl.className='fan'+(isChip?' violet':'');
+  const cx=n.x+n.w/2 - (n.fan.length*42)/2 + 4;
+  fanEl.style.cssText=`left:${cx}px;top:${n.y-46}px;`;
+  n.fan.forEach((ic,i)=>{
+    const c=document.createElement('div');
+    c.className='fan-chip';
+    c.style.animationDelay=(i*55)+'ms';
+    c.innerHTML=`<i class="fa-solid ${ic}"></i>`;
+    fanEl.appendChild(c);
+  });
+  world.appendChild(fanEl);
+}
+function hideFan(){if(fanEl){fanEl.remove();fanEl=null;}}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+const sidebar=document.getElementById('sidebar');
+let selectedId=null;
+/* Maps a fan icon to the team / workstream it represents */
+const TEAM_BY_ICON = {
+  "fa-server":   {key:"infra", team:"Platform / Infrastructure Engineers", color:"#9ed8a8"},
+  "fa-bug":      {key:"qa",    team:"Testers / QA",                          color:"#f2b8a8"},
+  "fa-code":     {key:"dev",   team:"Developers",                            color:"#8fb8f0"},
+  "fa-infinity": {key:"devops",team:"DevOps",                                color:"#c4a6ff"},
+};
+
+/* How a given tool/process relates to each team. Falls back to a sensible
+   generic line if no tool-specific note is defined. */
+const TEAM_RELATION = {
+  generic:{
+    dev:    t=>`Developers interact with ${t} as part of writing, building, and shipping their code through the pipeline.`,
+    qa:     t=>`Testers rely on ${t} to validate quality and catch defects before changes reach production.`,
+    infra:  t=>`Platform / Infrastructure Engineers own the setup, scaling, and reliability of ${t} as part of the delivery platform.`,
+    devops: t=>`DevOps engineers configure and automate ${t} so it runs hands-off as part of the continuous delivery flow.`,
+  },
+  git:{
+    dev:   ()=>"Developers commit, branch, and open pull requests here — it's their primary day-to-day workspace.",
+    qa:    ()=>"Testers pull specific branches/tags to test exact versions and trace defects back to commits.",
+    infra: ()=>"Infrastructure Engineers store infrastructure-as-code and pipeline definitions in the same repos.",
+    devops:()=>"DevOps wires repo events (push, merge) as the triggers that kick off the whole pipeline.",
+  },
+  maven:{
+    dev:   ()=>"Developers define dependencies and build logic in the POM and run builds locally.",
+    devops:()=>"DevOps runs Maven inside the CI job to produce the build artifact automatically on every change.",
+  },
+  selenium:{
+    qa:    ()=>"Testers author and maintain the automated functional/end-to-end browser tests run here.",
+    devops:()=>"DevOps schedules these tests in the pipeline so failures gate a release automatically.",
+  },
+  sonarqube:{
+    dev:   ()=>"Developers review SonarQube findings to fix bugs, code smells, and security hotspots in their code.",
+    devops:()=>"DevOps enforces quality gates here that can pass or fail the pipeline.",
+  },
+  nexus:{
+    dev:   ()=>"Developers consume shared libraries and publish their build artifacts to Nexus.",
+    devops:()=>"DevOps configures Nexus as the trusted, versioned artifact store the pipeline pushes to and pulls from.",
+  },
+  jenkins:{
+    devops:()=>"DevOps owns the pipeline-as-code that orchestrates every build/test/deploy stage here.",
+    infra: ()=>"Infrastructure Engineers provision and scale the CI runners/agents that execute the jobs.",
+  },
+  docker:{
+    dev:   ()=>"Developers write Dockerfiles so the app runs identically on their machine and in production.",
+    devops:()=>"DevOps builds and ships the container images as part of the automated pipeline.",
+  },
+  tomcat:{
+    dev:   ()=>"Developers target Tomcat as the servlet runtime their Java web app is deployed onto.",
+    devops:()=>"DevOps bakes Tomcat into the base image so the runtime ships consistently with the app.",
+  },
+  ansible:{
+    devops:()=>"DevOps writes the playbooks that automate provisioning and configuration of target hosts.",
+    infra: ()=>"Infrastructure Engineers use Ansible to bring servers to a known, repeatable state.",
+  },
+  terraform:{
+    devops:()=>"DevOps codifies infrastructure in Terraform so environments are spun up and changed automatically in the pipeline.",
+    infra: ()=>"Infrastructure Engineers own the Terraform modules that define the cloud/server foundation as code.",
+  },
+  kubernetes:{
+    devops:()=>"DevOps defines the manifests/Helm charts and rollout strategy for deployed workloads.",
+    infra: ()=>"Infrastructure Engineers operate the cluster — nodes, scaling, networking, and reliability.",
+  },
+  prereq:{
+    devops:()=>"DevOps automates host preparation so target servers are deploy-ready without manual steps.",
+    infra: ()=>"Infrastructure Engineers define what 'ready' means: Docker, Kubernetes, networking, security.",
+  },
+  jira:{
+    dev:   ()=>"Developers pick up issues and link their commits/branches to Jira tickets.",
+    qa:    ()=>"Testers log bugs and track test coverage against stories here.",
+    infra: ()=>"Infrastructure Engineers track platform work and incidents as tickets.",
+    devops:()=>"DevOps connects pipeline status and deployments back to the work items.",
+  },
+  confluence:{
+    dev:   ()=>"Developers document designs, APIs, and decisions for the rest of the team.",
+    qa:    ()=>"Testers keep test plans and runbooks here.",
+    infra: ()=>"Infrastructure Engineers maintain architecture docs and operational runbooks.",
+    devops:()=>"DevOps documents pipeline and release processes for repeatability.",
+  },
+  unix:{
+    devops:()=>"DevOps relies on shell scripting to glue automation steps together across the pipeline.",
+    infra: ()=>"Infrastructure Engineers administer Linux hosts and automate ops tasks via the shell.",
+  },
+  aws:{
+    devops:()=>"DevOps provisions and automates cloud resources that the pipeline deploys into.",
+    infra: ()=>"Infrastructure Engineers design and operate the cloud foundation: compute, network, IAM.",
+  },
+  trouble:{
+    devops:()=>"DevOps traces failures across the pipeline and restores service quickly.",
+  },
+  security:{
+    devops:()=>"DevOps embeds security scanning and secrets management into the pipeline (DevSecOps).",
+    infra: ()=>"Infrastructure Engineers harden hosts, images, and network boundaries.",
+  },
+  sre:{
+    devops:()=>"DevOps and SRE share practices like automation, CI/CD, and observability.",
+    infra: ()=>"Infrastructure Engineers apply SLOs, monitoring, and reliability engineering to the platform.",
+  },
+};
+
+function teamRelationText(nodeId, teamKey, toolName){
+  const perTool = TEAM_RELATION[nodeId];
+  if(perTool && perTool[teamKey]) return perTool[teamKey]();
+  return TEAM_RELATION.generic[teamKey](toolName);
+}
+
+/* Glossary: jargon term -> plain-language definition.
+   Terms are matched case-insensitively on word boundaries and get a
+   dotted underline with a hover tooltip. Longer terms are matched first. */
+const GLOSSARY = {
+  "blast radius":"How much can break if something goes wrong — the wider the 'blast radius', the more systems a single change or failure can take down.",
+  "policy-as-code":"Writing the rules about what's allowed (e.g. 'no public databases') as code, so they're checked automatically instead of by manual review.",
+  "drift detection":"Noticing when the real infrastructure has quietly changed away from what the code says it should be, so you can fix the mismatch.",
+  "remote state":"A shared, central record of what infrastructure currently exists, stored online so the whole team works from the same source of truth.",
+  "desired-state":"You declare the end result you want; the tool figures out the steps to get there and keeps things matching that target.",
+  "desired state":"You declare the end result you want; the tool figures out the steps to get there and keeps things matching that target.",
+  "idempotent":"Running it many times gives the same result as running it once — safe to repeat without causing duplicate or harmful changes.",
+  "agentless":"Works without installing any helper software on the target machines — it connects over standard remote access (SSH) instead.",
+  "self-healing":"Automatically detects failed parts and restarts or replaces them with no human intervention.",
+  "horizontal auto-scaling":"Automatically adding or removing copies of the app to match demand, instead of making one machine bigger.",
+  "rolling updates":"Replacing the old version with the new one a few instances at a time, so the service stays up throughout.",
+  "load-balancing":"Spreading incoming traffic evenly across multiple copies of the app so none gets overwhelmed.",
+  "load balancing":"Spreading incoming traffic evenly across multiple copies of the app so none gets overwhelmed.",
+  "service discovery":"How services automatically find and connect to each other without hard-coding addresses.",
+  "quality gate":"A pass/fail checkpoint — if the code doesn't meet the set standard, the pipeline stops and won't move forward.",
+  "quality gates":"A pass/fail checkpoint — if the code doesn't meet the set standard, the pipeline stops and won't move forward.",
+  "artifact":"A packaged, ready-to-use output of a build (like a .jar or container image) that later stages deploy.",
+  "artifacts":"Packaged, ready-to-use outputs of a build (like .jar files or container images) that later stages deploy.",
+  "servlet":"A Java program that runs on a server and handles web requests (like serving pages or API responses).",
+  "container image":"A frozen snapshot/template of a container that you can launch identical copies from.",
+  "containerize":"Package an app and its dependencies into a container so it runs consistently across environments.",
+  "container":"A lightweight, self-contained package holding an app plus everything it needs to run, so it behaves the same anywhere.",
+  "pods":"The smallest deployable unit in Kubernetes — one or more containers that run together as a group.",
+  "Infrastructure as Code":"Managing servers and cloud resources by writing definition files, instead of clicking around in a console by hand.",
+  "infrastructure as code":"Managing servers and cloud resources by writing definition files, instead of clicking around in a console by hand.",
+  "provisions":"Creates and sets up the underlying infrastructure (servers, networks, etc.) ready for use.",
+  "provision":"Create and set up the underlying infrastructure (servers, networks, etc.) ready for use.",
+  "playbooks":"Ansible's instruction files that describe, step by step, how a machine should be configured.",
+  "static analysis":"Inspecting source code for bugs and risks without actually running it.",
+  "version control":"A system that tracks every change to code over time, so you can review history and collaborate safely.",
+  "CI/CD":"Continuous Integration / Continuous Delivery — automatically building, testing, and shipping code changes.",
+  "pull requests":"Proposed code changes submitted for review before they're merged into the main codebase.",
+  "pull request":"A proposed code change submitted for review before it's merged into the main codebase.",
+  "SLOs":"Service Level Objectives — targets for how reliable a service should be (e.g. 99.9% uptime).",
+  "SLO":"Service Level Objective — a target for how reliable a service should be (e.g. 99.9% uptime).",
+  "error budget":"The small amount of allowed unreliability before you must stop shipping features and focus on stability.",
+  "observability":"Being able to understand what's happening inside a system from its logs, metrics, and traces.",
+  "HCL":"HashiCorp Configuration Language — the human-readable language used to write Terraform definitions.",
+  "proxies":"Middlemen servers that sit in front of others — here, caching external downloads so builds are faster and keep working if the original source is down.",
+  "proxy":"A middleman server that sits in front of another — e.g. caching external downloads so builds are faster and keep working if the source is down.",
+  "dependencies":"Other pieces of code (libraries) your app needs to function — they get pulled in automatically when building.",
+  "dependency":"Another piece of code (a library) your app needs to function — pulled in automatically when building.",
+  "binaries":"The compiled, ready-to-run output files produced from source code (as opposed to the human-readable code itself).",
+  "immutable":"Can't be changed after it's created — if you need a change, you make a brand-new version instead of editing the old one.",
+  "decouple":"Separate two things so they no longer depend on each other and can change or fail independently.",
+  "decouples":"Separates two things so they no longer depend on each other and can change or fail independently.",
+  "backlog":"The prioritized to-do list of features, fixes, and tasks the team still needs to work on.",
+  "runbook":"A step-by-step guide for handling a specific operational task or incident, so anyone can follow it the same way.",
+  "runbooks":"Step-by-step guides for handling specific operational tasks or incidents, so anyone can follow them the same way.",
+  "bootstrapping":"The initial setup that gets a fresh system from nothing to a ready-to-use state.",
+  "parsing":"Reading raw text or data and breaking it into structured pieces a program can understand.",
+  "cron":"A scheduler on Unix systems that runs tasks automatically at set times (e.g. every night at 2am).",
+  "shift-left":"Doing checks like testing and security earlier in the process (further 'left' on the timeline) to catch problems sooner and cheaper.",
+  "SLIs":"Service Level Indicators — the actual measurements of how a service is doing (e.g. real uptime or response time).",
+  "SLI":"Service Level Indicator — an actual measurement of how a service is doing (e.g. real uptime or response time).",
+  "runtime":"The environment where a program actually runs (as opposed to when it's being built); also, 'at runtime' means while the app is live.",
+  "scaling":"Adjusting capacity to handle load — adding more instances (out) or bigger machines (up) as demand changes.",
+  "cluster":"A group of machines working together as one pool of computing power that workloads are spread across.",
+  "code smell":"Code that works but is written in a way that hints at deeper problems and may be hard to maintain.",
+  "code smells":"Code that works but is written in ways that hint at deeper problems and may be hard to maintain.",
+  "coverage":"How much of your code is actually exercised by tests — higher coverage means fewer untested paths.",
+  "technical debt":"Shortcuts taken now that make code quicker to ship but more costly to maintain or fix later — like debt you pay back with interest.",
+  "POM":"Project Object Model — Maven's pom.xml file that declares a project's dependencies and build steps.",
+  "declaratively":"You describe the end result you want, and the tool figures out the steps to achieve it — rather than you spelling out each step yourself.",
+  "declarative":"An approach where you describe the end result you want, and the tool works out the steps to achieve it — rather than you spelling out each step yourself.",
+};
+
+// Pre-sort terms longest-first so multi-word phrases win over their sub-words
+const GLOSSARY_TERMS = Object.keys(GLOSSARY).sort((a,b)=>b.length-a.length);
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escapeAttr(s){return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* Wrap glossary terms in HTML text with hover-definition spans.
+   Operates only on text nodes (never inside tags), and scans each text
+   segment left-to-right against the ORIGINAL characters so inserted
+   markup is never re-matched. Each term is annotated at most once. */
+function annotateJargon(html){
+  const used=new Set();
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (m, tag, text)=>{
+    if(tag) return tag;            // leave tags untouched
+    let out='';
+    let i=0;
+    const lower=text.toLowerCase();
+    while(i<text.length){
+      // find the earliest unused glossary term at or after i
+      let best=null;
+      for(const term of GLOSSARY_TERMS){
+        if(used.has(term)) continue;
+        const tl=term.toLowerCase();
+        let from=i;
+        while(true){
+          const idx=lower.indexOf(tl, from);
+          if(idx<0) break;
+          const before=idx>0?text[idx-1]:' ';
+          const after=idx+term.length<text.length?text[idx+term.length]:' ';
+          const bOK=!/[A-Za-z0-9]/.test(before);
+          const aOK=!/[A-Za-z0-9]/.test(after);
+          if(bOK&&aOK){
+            if(!best || idx<best.idx){ best={idx, term, len:term.length}; }
+            break;
+          }
+          from=idx+1;
+        }
+      }
+      if(!best){ out+=escapeHtml(text.slice(i)); break; }
+      out+=escapeHtml(text.slice(i, best.idx));
+      const matched=text.substr(best.idx, best.len);
+      out+=`<span class="jargon" data-def="${escapeAttr(GLOSSARY[best.term])}">${escapeHtml(matched)}</span>`;
+      used.add(best.term);
+      i=best.idx+best.len;
+    }
+    return out;
+  });
+}
+
+function openSidebar(id){
+  const chip = CHIPS.find(c=>c.id===id);
+  const n = NODES[id] || (chip ? {type:'chip', title:chip.title||chip.label.replace(/\n/g,' '), icon:chip.icon, fan:chip.fan} : null);
+  const info=INFO[id];
+  if(!n || !info) return;
+  selectedId=id;
+  document.querySelectorAll('.node, .chip').forEach(el=>el.classList.remove('selected'));
+  const domEl = document.getElementById('node-'+id) || document.getElementById('chip-'+id);
+  if(domEl) domEl.classList.add('selected');
+
+  const typeCls = n.type==='blue'?'blue':n.type==='amber'?'amber':n.type==='chip'?'violet':'';
+  const head=document.getElementById('sbHead');
+  head.className='sb-head '+typeCls;
+  document.getElementById('sbCat').textContent=info.cat;
+  document.getElementById('sbTitle').textContent=n.title;
+  document.getElementById('sbIco').innerHTML=`<i class="${n.icon}"></i>`;
+
+  let body='';
+  if(info.roles){
+    body+=`<h6>Scope / focus area</h6><div class="scope-pills">`;
+    info.roles.forEach(r=>body+=`<span class="role-pill">${r}</span>`);
+    body+=`</div>`;
+  }
+  body+=`<p>${info.desc}</p>`;
+  if(info.note){
+    body+=`<div class="callout"><i class="fa-solid fa-circle-info callout-ico"></i>`
+        +`<div class="callout-body">${info.note}</div></div>`;
+  }
+  // Applicable teams — derived from the block's hover icons; each row expands
+  if(n.fan && n.fan.length){
+    const seen=new Set();
+    const items=[];
+    n.fan.forEach(ic=>{
+      const t=TEAM_BY_ICON[ic];
+      if(t && !seen.has(ic)){ seen.add(ic); items.push({ic,...t}); }
+    });
+    if(items.length){
+      body+=`<h6>Applicable teams / workstreams</h6><div class="team-list">`;
+      items.forEach(it=>{
+        const rel=teamRelationText(id, it.key, n.title);
+        body+=`<div class="team-item">`
+            +`<button class="team-row" type="button" onclick="toggleTeam(this)">`
+            +`<span class="team-ico" style="color:${it.color}"><i class="fa-solid ${it.ic}"></i></span>`
+            +`<span class="team-name">${it.team}</span>`
+            +`<i class="fa-solid fa-chevron-down team-chev"></i></button>`
+            +`<div class="team-detail"><p>${rel}</p></div>`
+            +`</div>`;
+      });
+      body+=`</div>`;
+    }
+  }
+  if(info.flow){
+    body+=`<h6>Data flow</h6>`;
+    info.flow.forEach(([dir,txt])=>{
+      body+=`<div class="flowstep"><span class="fs-dir">${dir}</span><span>${txt}</span></div>`;
+    });
+  }
+  if(info.points){
+    body+=`<h6>Key points</h6><ul class="sb-list">`;
+    info.points.forEach(p=>body+=`<li><i class="fa-solid fa-circle-check"></i>${p}</li>`);
+    body+=`</ul>`;
+  }
+  const sbBody=document.getElementById('sbBody');
+  sbBody.innerHTML=annotateJargon(body);
+  sbBody.scrollTop=0;
+  sidebar.classList.add('open');
+
+  highlightConnections(id);
+}
+function closeSidebar(){
+  sidebar.classList.remove('open');
+  selectedId=null;
+  document.querySelectorAll('.node, .chip').forEach(el=>el.classList.remove('selected','dimmed'));
+  document.querySelectorAll('.edge').forEach(el=>{el.style.opacity='';el.style.strokeWidth='';});
+}
+document.getElementById('sbClose').addEventListener('click',closeSidebar);
+
+// Expand/collapse a team row to reveal how the tool relates to that team
+function toggleTeam(btn){
+  const item=btn.closest('.team-item');
+  item.classList.toggle('open');
+}
+window.toggleTeam=toggleTeam;
+
+// Decide tooltip placement live on hover: flip below if an upward tooltip
+// would hit the header, and flip/cap horizontally so it never overflows the panel.
+(function(){
+  const sbBody=document.getElementById('sbBody');
+  const TIP_SPACE=130; // space an upward tooltip needs above the term
+  const SIDE_PAD=14;   // keep the bubble this far from the panel edges
+  sbBody.addEventListener('mouseover', e=>{
+    const j=e.target.closest('.jargon');
+    if(!j || !sbBody.contains(j)) return;
+    const term=j.getBoundingClientRect();
+    const panel=sbBody.getBoundingClientRect();
+
+    // vertical: flip below the term when there isn't room above
+    j.classList.toggle('below', (term.top - panel.top) < TIP_SPACE);
+
+    // horizontal: anchor to whichever side leaves more room, and cap width
+    const spaceRight = panel.right - term.left;   // room if left-anchored at the term
+    const spaceLeft  = term.right - panel.left;    // room if right-anchored at the term
+    const useRight = spaceLeft > spaceRight;       // flip to right-anchor when more room on the left
+    j.classList.toggle('flip-right', useRight);
+    const avail = Math.max(spaceRight, spaceLeft) - SIDE_PAD;
+    j.style.setProperty('--tip-max', Math.min(300, Math.max(160, avail)) + 'px');
+  });
+})();
+
+function highlightConnections(id){
+  const connected=new Set([id]);
+  EDGES.forEach(e=>{if(e.f===id)connected.add(e.t); if(e.t===id)connected.add(e.f);});
+  document.querySelectorAll('.node').forEach(el=>{
+    const nid=el.id.replace('node-','');
+    el.classList.toggle('dimmed', !connected.has(nid));
+  });
+  document.querySelectorAll('.chip').forEach(el=>{
+    const cid=el.id.replace('chip-','');
+    el.classList.toggle('dimmed', !connected.has(cid));
+  });
+  document.querySelectorAll('.edge').forEach(el=>{
+    const isCon=el.dataset.from===id||el.dataset.to===id;
+    el.style.opacity=isCon?'1':'.12';
+    el.style.strokeWidth=isCon?'3.4':'';
+  });
+}
+
+/* =========================================================
+   PAN & ZOOM
+   ========================================================= */
+const stage=document.getElementById('stage');
+let scale=1,tx=0,ty=0;
+let isPanning=false,startX=0,startY=0,moved=false;
+const MIN=0.3,MAX=2.6;
+
+function apply(){
+  world.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;
+  document.getElementById('zoomlvl').textContent=Math.round(scale*100)+'%';
+}
+function fitView(){
+  // bounding box of all nodes
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  Object.values(NODES).forEach(n=>{
+    minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);
+    maxX=Math.max(maxX,n.x+n.w);maxY=Math.max(maxY,n.y+n.h);
+  });
+  const pad=90;
+  const bw=maxX-minX+pad*2, bh=maxY-minY+pad*2;
+  const vw=window.innerWidth, vh=window.innerHeight;
+  scale=Math.min(vw/bw, vh/bh, 1.1);
+  scale=Math.max(MIN,Math.min(MAX,scale));
+  tx=(vw-(bw)*scale)/2 - (minX-pad)*scale;
+  ty=(vh-(bh)*scale)/2 - (minY-pad)*scale;
+  apply();
+}
+window.addEventListener('resize',()=>{ /* keep current */ });
+
+stage.addEventListener('mousedown',e=>{
+  if(e.target.closest('.node')||e.target.closest('.chip.clickable')||e.target.closest('#sidebar'))return;
+  isPanning=true;moved=false;startX=e.clientX-tx;startY=e.clientY-ty;
+  stage.classList.add('grabbing');
+});
+window.addEventListener('mousemove',e=>{
+  if(!isPanning)return;
+  tx=e.clientX-startX;ty=e.clientY-startY;moved=true;apply();
+});
+window.addEventListener('mouseup',()=>{isPanning=false;stage.classList.remove('grabbing');});
+
+// Close the sidebar when clicking anywhere outside it (and not on a node, and not while dragging)
+document.addEventListener('click',e=>{
+  if(!sidebar.classList.contains('open')) return;
+  if(moved) return;                              // ignore the click that ends a pan
+  if(e.target.closest('#sidebar')) return;       // clicks inside the panel keep it open
+  if(e.target.closest('.node')) return;          // clicking another block switches selection
+  if(e.target.closest('.chip.clickable')) return;// clicking an artifact chip switches selection
+  if(e.target.closest('#controls')) return;      // zoom controls shouldn't close it
+  closeSidebar();
+});
+
+stage.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const rect=stage.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const delta=-e.deltaY*0.0014;
+  const ns=Math.max(MIN,Math.min(MAX,scale*(1+delta)));
+  const k=ns/scale;
+  tx=mx-(mx-tx)*k;ty=my-(my-ty)*k;
+  scale=ns;apply();
+},{passive:false});
+
+function zoomBy(f){
+  const cx=window.innerWidth/2, cy=window.innerHeight/2;
+  const ns=Math.max(MIN,Math.min(MAX,scale*f));
+  const k=ns/scale;
+  tx=cx-(cx-tx)*k;ty=cy-(cy-ty)*k;scale=ns;apply();
+}
+document.getElementById('zoomIn').onclick=()=>zoomBy(1.25);
+document.getElementById('zoomOut').onclick=()=>zoomBy(0.8);
+document.getElementById('reset').onclick=()=>{scale=1;tx=60;ty=40;apply();};
+document.getElementById('fit').onclick=fitView;
+
+/* touch (pinch + pan) */
+let touchDist=0,touchMid=null;
+stage.addEventListener('touchstart',e=>{
+  if(e.target.closest('.node')||e.target.closest('.chip.clickable'))return;
+  if(e.touches.length===1){isPanning=true;moved=false;startX=e.touches[0].clientX-tx;startY=e.touches[0].clientY-ty;}
+  else if(e.touches.length===2){
+    touchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    touchMid={x:(e.touches[0].clientX+e.touches[1].clientX)/2,y:(e.touches[0].clientY+e.touches[1].clientY)/2};
+  }
+},{passive:false});
+stage.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===1&&isPanning){tx=e.touches[0].clientX-startX;ty=e.touches[0].clientY-startY;moved=true;apply();}
+  else if(e.touches.length===2){
+    const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    const ns=Math.max(MIN,Math.min(MAX,scale*(nd/touchDist)));
+    const k=ns/scale;
+    tx=touchMid.x-(touchMid.x-tx)*k;ty=touchMid.y-(touchMid.y-ty)*k;
+    scale=ns;touchDist=nd;apply();
+  }
+},{passive:false});
+stage.addEventListener('touchend',()=>{isPanning=false;});
+
+/* =========================================================
+   INIT  — hide hint, fit view, staggered node entrance
+   ========================================================= */
+window.addEventListener('load',()=>{
+  // Ensure Font Awesome converts every <i> (incl. dynamically injected ones) to SVG
+  if(window.FontAwesome && window.FontAwesome.dom){
+    try{window.FontAwesome.dom.i2svg();}catch(e){}
+  }
+  fitView();
+  // entrance animation
+  const nodes=[...document.querySelectorAll('.node')];
+  nodes.forEach((el,i)=>{
+    el.style.opacity='0';el.style.transform='translateY(14px) scale(.96)';
+    setTimeout(()=>{el.style.transition='opacity .5s, transform .5s cubic-bezier(.2,.9,.3,1)';
+      el.style.opacity='';el.style.transform='';},90+i*45);
+  });
+});
+setTimeout(()=>document.getElementById('hint').classList.add('hide'),6500);
+// fade legend/hint while panning is fine; keep simple
+</script>
+</body>
+</html>
