@@ -662,6 +662,10 @@ const STACKS = {
         desc:"Tomcat is the Java servlet container that runs the web application. Here it serves as the base image layer Docker builds on top of.",
         flow:[["→","Used as the base image for Docker"]],
         points:["Executes Java WAR applications","Lightweight servlet & JSP container","Bundled into the Docker image","Provides the app's HTTP runtime"]},
+      package:{cat:"Artifact · Build output",roles:["Deployable build"],
+        desc:"The packaged, runnable output of the Java build — a JAR or WAR produced by Maven or Gradle. This is the immutable binary that gets tested, archived to Nexus, and ultimately containerized for deployment.",
+        flow:[["←","Produced by Maven / Gradle from the source"],["→","Tested by Selenium, archived to Nexus"]],
+        points:["A compiled JAR or WAR","Immutable — the same artifact moves through every stage","Stored in Nexus so deploys reuse the exact build"]},
     }
   },
   node: {
@@ -689,6 +693,10 @@ const STACKS = {
         desc:"The npm registry (public, or a private/proxy registry like Nexus or Verdaccio) stores and versions the published packages and caches dependencies for reproducible installs.",
         flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
         points:["Versioned package storage","Proxies & caches the public npm registry","Single source of truth for internal packages"]},
+      package:{cat:"Artifact · Build output",roles:["Deployable bundle"],
+        desc:"The build output for Node.js — a bundled/transpiled app (e.g. a dist/ folder or an npm package tarball) produced by npm/Yarn. This immutable bundle gets tested, published to a registry, and containerized for deployment.",
+        flow:[["←","Produced by npm / Yarn from the source"],["→","Tested, published to the registry & containerized"]],
+        points:["A bundled/transpiled app or npm package (.tgz)","Immutable — the same artifact moves through every stage","Published to an npm registry for reuse"]},
     }
   },
   angular: {
@@ -716,6 +724,10 @@ const STACKS = {
         desc:"An npm registry (public or a private/proxy like Nexus) stores dependencies and any publishable libraries, caching them for reproducible builds.",
         flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
         points:["Versioned package storage","Proxies & caches the public npm registry","Single source of truth for internal libs"]},
+      package:{cat:"Artifact · Build output",roles:["Static bundle"],
+        desc:"The Angular build output — an optimized set of static assets (HTML/CSS/JS in a dist/ folder) produced by ng build. This immutable bundle is served by a web server or CDN and gets containerized for deployment.",
+        flow:[["←","Produced by the Angular CLI (ng build)"],["→","Served by a web server / CDN, containerized"]],
+        points:["Optimized static assets (dist/ bundle)","Immutable — the same build is promoted through stages","Served by Nginx or a CDN, no runtime needed"]},
     }
   },
   dotnet: {
@@ -743,6 +755,10 @@ const STACKS = {
         desc:"NuGet feeds (public nuget.org or a private/proxy like Nexus or Azure Artifacts) store and version packages, caching dependencies for reproducible builds.",
         flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
         points:["Versioned NuGet package storage","Proxies & caches nuget.org","Single source of truth for internal packages"]},
+      package:{cat:"Artifact · Build output",roles:["Published build"],
+        desc:"The .NET build output — a published set of DLLs (or a self-contained executable) produced by dotnet publish. This immutable artifact gets tested, optionally packed as a NuGet package, and containerized for deployment.",
+        flow:[["←","Produced by dotnet publish / MSBuild"],["→","Tested, optionally packed, containerized"]],
+        points:["Published DLLs or a self-contained executable","Immutable — the same artifact moves through every stage","Optionally packed as a NuGet package (.nupkg)"]},
     }
   },
   python: {
@@ -770,6 +786,10 @@ const STACKS = {
         desc:"A PyPI index (public pypi.org or a private/proxy like Nexus or devpi) stores and versions packages, caching dependencies for reproducible installs.",
         flow:[["←","Receives published packages"],["→","Serves packages to builds & Docker"]],
         points:["Versioned Python package storage","Proxies & caches pypi.org","Single source of truth for internal packages"]},
+      package:{cat:"Artifact · Build output",roles:["Distributable build"],
+        desc:"The Python build output — a wheel (.whl) or source distribution (sdist) produced by pip/Poetry/build. This immutable artifact gets tested, published to a PyPI index, and containerized for deployment.",
+        flow:[["←","Produced by pip / Poetry (build)"],["→","Tested, published to PyPI, containerized"]],
+        points:["A wheel (.whl) or source distribution (sdist)","Immutable — the same artifact moves through every stage","Published to a PyPI-compatible index"]},
     }
   },
 };
